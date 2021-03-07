@@ -3,7 +3,7 @@
 ## :coffee: Java
 
 ## :hammer: jvm
-- [剑指Offer](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/jvm/jvm_catalog.md)
+- [jvm](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/jvm/jvm_catalog.md)
 
 ## :memo: juc
 - [juc](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/juc/juc_catalog.md)
