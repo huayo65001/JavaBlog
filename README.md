@@ -2,9 +2,9 @@
 
 ## :coffee: Java
 
-## :hammer: Jvm
+## :hammer: jvm
 
-## :memo: Juc
+## :memo: juc
 
 ## :pencil2: 数据库
 
@@ -14,3 +14,4 @@
 
 ## :mortar_board: 算法
 - [剑指Offer](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/alogrithm/剑指Offer_catalog.md)
+- [leetcode top100](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/alogrithm/剑指Offer_catalog.md)
