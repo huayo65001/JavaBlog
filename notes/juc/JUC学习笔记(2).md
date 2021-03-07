@@ -1,8 +1,5 @@
 ﻿# JUC学习笔记（2）
 
-标签（空格分隔）： JUC
-
----
 
 - 关键字：synchronized详解
     - Synchronized可以作用在哪里? 分别通过对象锁和类锁进行举例。

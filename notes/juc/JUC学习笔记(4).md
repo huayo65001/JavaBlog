@@ -1,8 +1,5 @@
 ﻿# JUC学习笔记（4）
 
-标签（空格分隔）： JUC
-
----
 
 - JUC锁：LockSupport详解
     - 为什么LockSupport也是核心基础类?AQS框架借助于两个类：Unsafe(提供CAS操作)和LockSupport(提供park/unpark操作)
