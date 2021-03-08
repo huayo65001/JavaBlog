@@ -1,6 +1,9 @@
 # JavaBlog
 
 ## :coffee: Java
+- [Java基础知识](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/java/java_catalog.md)
+- [Java集合框架源码分析](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/java/java_catalog.md)
+- [Java I/O](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/java/java_catalog.md)
 
 ## :hammer: jvm
 - [Java虚拟机](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/jvm/jvm_catalog.md)
