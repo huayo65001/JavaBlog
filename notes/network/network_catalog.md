@@ -5,3 +5,8 @@
 - [网络层](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/network/network_layer.md)
 - [链路层](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/network/link_layer.md)
 - [物理层](https://github.com/Eric-Han0521/JavaBlog/blob/main/notes/network/physical_layer.md)
+
+
+- tcp三次握手，tcp三次握手的优化
+- 链表的快速查询
+- java线程安全
