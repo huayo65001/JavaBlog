@@ -70,7 +70,6 @@
 <br>
 
 - 性能优化
-    - 
 
 <br>
 
@@ -111,4 +110,18 @@
 - BufferPool
 
 - undo日志文件、redo日志文件和bin log日志文件
-    - undo日志文件：记录数据修改前的样子，是逻辑擦耦走
+    - undo日志文件：记录数据修改前的样子。
+    - redo日志文件：记录数据被修改后的样子
+        redo日志文件是InnoDB特有的，他是存储引擎级别的，不是MySQL级别的。
+        (1) 如果在将更新的数据记录到redo log buffer中的时候，服务器宕机了，缓存池中的数据丢失了，MySQL会认为本次事务是失败的，数据恢复到更新前的样子。
+        (2)如果redo log buffer刷入磁盘后，数据库服务器宕机了，此时redo log buffer中的数据已经被写入到磁盘，被持久化，在下次重启MySQL也会将redo日志文件中的内容恢复到Buffer pool中。
+    - bin log日志文件：记录整个操作过程
+        bin log属于MySQL级别的日志，redo log记录的东西偏向于物理性质。
+        - bin log与redo log的比较
+        (1) redo log大小是固定的，bin log可通过参数max_bin_log_size来设置每个bin log文件的大小。
+        (2) redo log属于InnoDB特有的，而bin log是MySQL层实现的，任何的引擎都可以使用bin log文件。
+        (3) redo log采用循环写的方式，当写到结尾的时候，会回到开头循环写日志。bin log采用追加的方式，超过文件大小，后续的日志会记录到新的文件上。 
+        (4) redo log适合来做崩溃恢复。bin log适用于主从复制和数据恢复。
+        - bin log存储修改的数据，同时本次修改的bin log文件名和修改的内容在bin log中的位置记录到redo log中。在redo log最后写入commit标记。
+        - 如果在数据被写入bin log文件的时候，系统宕机了，首先可以确定的是只要redo log最后没有commit标记，MySQL就会认为事务是失败的，但是数据没有丢失，因为已经记录到redo log磁盘文件中了。下次MySQL重启的时候将redo log中的数据恢复到BufferPool中。
+- 
