@@ -27,19 +27,38 @@
 <br>
 
 - 旧版同步：SYNC
+    - Redis2.8之前的数据同步通过SYNC命令来实现
+    - slave向master发送SYNC命令，master收到命令后执行BGSAVE命令，fork子进程生成RDB方法，同时会有一个缓冲区记录当前开始所有的写命令。当BGSAVE执行完成后，master将生成的RDB文件发送给slave，slave接收RDB文件并载入到内存，将数据库状态更新到master执行BGSAVE之前的状态。当master进行命令传播时，将缓冲区中的写命令发送给slave，还会同时写进复制积压缓冲区。当slave重连上master时，会将自己的复制偏移量通过PYSNC发送给master，master通过与复制积压缓冲区进行比较，如果发现部分未同步的命令还在复制积压缓冲区，则将这部分命令进行部分同步，如果重连时间太久，这部分命令已经不在复制积压缓冲区，则将进行全同步。
 
 <br>
 
 - 运行ID(runid)
+    - 每个Redis Server都会有自己的运行ID，当slave初次复制master时，master会将自己的runid发送给slave进行保存，之后slave再次进行复制的时候就会讲该runid发送给master，master通过比较runid来判断是不是同一个master。
+    - 引入runid后，数据同步过程变为slave通过PSYNC runid offset命令，将正在复制的runid和offset发送给master，master判断runid与自己的runid是否相等，如果相等，并且offset还在复制积压缓冲区，进行部分重同步。否则，如果runid不想等或者offset已经不在复制积压缓冲区，执行完全重同步。
 
 <br>
 
 - PSYNC存在的问题
+    - slave重启，runid和offset都会丢失，需要进行完全重同步。
+    - redis发生故障切换，故障切换后master runid发生了变化，slave需要进行完全重同步。
 
 <br>
 
 - PSYNC2
+    - 引入两组replid和offset替换原来的runid和offset
+    1. 第一组replid和offset，对于master来说，表示为自己的复制ID和复制偏移量，对于slave来说，表示为自己正在同步的master的复制ID和复制偏移量。
+    2. 第二组replid和offset，对于master和slave来说，都表示为自己上一个master的复制ID来复制偏移量；主要用于切换时支持部分重同步。
+    - slave也会开启复制积压缓冲区，主要用于故障切换后，slave代替master，该slave仍可以通过复制积压缓冲区来继续支持部分重同步，否则无法支持部分重同步。
+
+    - PSYNC2优化场景
+    1. slave重启后导致完整同步，原因是重启后复制ID和复制偏移量都丢失了，解决方法在关闭服务器之前将这两个变量存下来。
+    2. master故障切换后导致完整重同步：原因是master发生故障后，出现了新的master，而新的master的复制ID也发生了变化，导致无法进行部分重同步。解决方法，将新的复制ID和复制偏移量与老的复制ID和复制偏移量串联起来。slave在晋升为master后，将自己保存的第一组复制ID和偏移量移动到第二组，第一组生成属于自己的复制ID。这样新master通过第二组id判断slave是否是自己之前的master，如果是尝试进行部分重同步。
+
 
 <br>
 
 - 主从复制的演变
+
+- 哨兵
+
+**未完，继续写**https//zhuanlan.zhihu.com/p/134104400
