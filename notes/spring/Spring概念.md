@@ -12,3 +12,12 @@
         4. 方便整合各种优秀框架
         5. 降低Java EE API的使用难度
         6. 方便进行事务操作
+
+
+- Spring框架中用到了哪些设计模式？
+    - 工厂设计模式：Spring使用工厂模式通过BeanFactory、ApplicationContext创建bean对象
+    - 代理设计模式：Spring AOP功能的实现
+    - 单例设计模式：Spring中的Bean默认都是单例的
+    - 包装器设计模式：我们的项目需要连接多个数据库，而且不同的客户在每次访问中根据需要访问不同的数据库，这种模式会让我们根据客户的需求能够动态切换不同的数据源。
+    - 观察者模式：Spring事件驱动模型
+    - 适配器模式：Spring AOP的增强或通知使用到了适配器模式，Spring MVC中也使用到了适配器模式适配Controller
