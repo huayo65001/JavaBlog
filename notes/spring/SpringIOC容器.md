@@ -1,11 +1,9 @@
 # IOC
 - IOC底层原理
     - 什么是IOC
-        Inversion of Control 控制反转，降低计算机代码之间的耦合度
-        把对象的创建和对象之间调用的过程，交给Spring进行管理
+        Inversion of Control 控制反转，降低计算机代码之间的耦合度.把对象的创建和对象之间调用的过程，交给Spring进行管理
     - IOC底层原理
-    1. xml解析、工厂模式、反射
-    通过xml解析获得在xml文件中的类路径，然后通过反射来创建该类的实例
+        xml解析、工厂模式、反射：通过xml解析获得在xml文件中的类路径，然后通过反射来创建该类的实例
 <br>
 - IOC接口(BeanFactory)
     - IOC思想基于IOC容器完成，IOC容器底层就是对象工厂。
@@ -22,8 +20,7 @@
 <br>
 - IOC操作Bean管理(基于xml)
     - 基于xml方式创建对象
-        - 在Bean标签中的属性
-        id 属性 class 属性(类全路径)
+        - 在Bean标签中的属性：id 属性 class 属性(类全路径)
         - 创建参数时，默认也是执行无参的构造方法。
     - 基于xml方式注入属性
         - DI：依赖注入
@@ -36,7 +33,6 @@
     - Bean的作用域
         - 在Spring中可以设置创建的Bean实例是单实例还是多实例
         - 在Spring中在默认情况下，创建的Bean是单实例对象
-    - Bean的生命周期
     - 外部属性文件
         - 直接配置数据库信息(配置数据库连接池)
         - 引入外部属性文件配置数据库连接池
@@ -53,26 +49,53 @@
 
 <br>
 
+- Spring 扩展接口
+    - BeanFactoryPostProcessor
+        - Spring允许在Bean创建之前，读取Bean的元属性，并根据自己的需求对元属性进行修改，比如将Bean的scope从singleton改为prototype
+    - BeanPostProcessor
+        - 在每个bean初始化前后做操作
+    - InstantiationAwareBeanPostProcessor
+        - 在bean实例化前做操作
+    - BeanNameAware、ApplicationContextAware和BeanFactoryAware
+        - 针对bean工厂，可以获取上下文，可以获取当前bean的id
+    - InitialingBean
+        - 在属性设置完毕后做一些自定义操作
+    - DisposibleBean
+        - 在关闭容器之前做一些操作
+
+<br>
+
 - Spring Bean的生命周期
     - 实例化BeanFactoryPostProcessor实现类
     - 执行BeanFactoryPostProcessor的postProcessBeanFactory方法
     - 实例化BeanPostProcessor实现类
-    - 实例化InstantiationAwareBeanPostProcessorAdapter实现类
+    - 实例化InstantiationAwareBeanPostProcessor实现类
     - 执行InstantiationAwareBeanPostProcessor的postProcessBeforeInstantiation方法
-    - 执行Bean的构造器
+    - **执行Bean的构造器**
     - 执行InstantiationAwareBeanPostProcessor的postProcessPropertyValues方法
-    - 为Bean注入属性
+    - **为Bean注入属性**
     - 调用BeanNameAware的setBeanName方法
     - 调用BeanFactoryAware的setBeanFactory方法
     - 执行BeanPostProcessor的postProcessBeforeInitialization方法
     - 调用InitializingBean的afterPropertiesSet方法
-    - 调用\<bean>的init-method属性指定的初始化方法
+    - **调用\<bean>的init-method属性指定的初始化方法**
     - 执行BeanPostProcessor的postProcessAfterInitialization方法
-    - 执行InstantiationAwareBeanPostProcessor的postProcessAfterInitialization方法
+    - 执行InstantiationAwareBeanPostProcessor的postProcessAfterInstantiation方法
     - 容器初始化成功，执行正常调用后，下面销毁容器
     - 调用DisposibleBean的destory方法
     - 调用\<bean>的destroy-method属性指定的初始化方法
 
+<br>
 
 - Spring IOC有什么好处？
+
+<br>
+
+- Spring 循环依赖
+
+
+<br>
+
+- BeanDefinition
+
     

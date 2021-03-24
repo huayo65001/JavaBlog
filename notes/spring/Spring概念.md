@@ -12,7 +12,7 @@
         4. 方便整合各种优秀框架
         5. 降低Java EE API的使用难度
         6. 方便进行事务操作
-
+<br>
 
 - Spring框架中用到了哪些设计模式？
     - 工厂设计模式：Spring使用工厂模式通过BeanFactory、ApplicationContext创建bean对象
