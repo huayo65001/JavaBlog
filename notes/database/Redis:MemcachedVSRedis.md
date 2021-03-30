@@ -1,1 +1,0 @@
-# Memcached VS Redis
