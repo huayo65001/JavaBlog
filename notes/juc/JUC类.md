@@ -19,8 +19,6 @@
     - AtomicStampedReference是什么?
     - AtomicStampedReference是怎么解决ABA的? 内部使用Pair来存储元素值及其版本号
     - java中还有哪些类可以解决ABA的问题? AtomicMarkableReference 
-
----
         
 
 
