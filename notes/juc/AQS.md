@@ -9,8 +9,6 @@
 - AQS的应用示例? 
 
 
-### ReentrantLock详解
-
 ### ConditionObject源码
 ```java
 public class ConditionObject implements Condition, java.io.Serializable {
