@@ -443,3 +443,32 @@ public class ConditionObject implements Condition, java.io.Serializable {
         }
     }
 ```  
+
+### AQS核心方法
+
+#### acquire
+- 以独占模式获取资源，忽略中断
+
+#### tryAcquire
+
+#### acquireQueued
+- sync队列中的结点在独占且忽略中断的模式下获取资源
+
+#### addWaiter
+
+#### enq
+- 如果sync队列还没有初始化，则会使用enq插入队列中
+
+#### shouldParkAfterFailedAcquire
+- 当获取资源失败后，检查并且更新结点状态
+
+#### parkAndCheckInterrupt
+
+#### cancelAcquire
+- 取消获取资源
+
+#### unparkSuccessor
+- 释放后继节点
+
+#### release
+
