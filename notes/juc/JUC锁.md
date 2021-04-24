@@ -11,8 +11,11 @@
 
 
 #### ReetrantLock继承关系
+实现了Lock接口
 
 #### ReentrantLock内部类
+内部类：Sync/NonfairSync/FairSync
+
 
 #### ReentrantLock是如何实现加锁的，把AQS里的方法也说一遍
 

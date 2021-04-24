@@ -450,11 +450,13 @@ public class ConditionObject implements Condition, java.io.Serializable {
 - 以独占模式获取资源，忽略中断
 
 #### tryAcquire
+- 以独占模式获取资源
 
 #### acquireQueued
 - sync队列中的结点在独占且忽略中断的模式下获取资源
 
 #### addWaiter
+- 向同步队列添加一个节点
 
 #### enq
 - 如果sync队列还没有初始化，则会使用enq插入队列中
