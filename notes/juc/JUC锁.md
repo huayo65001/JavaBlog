@@ -20,7 +20,7 @@
 #### ReentrantLock是如何实现加锁的，把AQS里的方法也说一遍
 
 #### ReentrantLock默认实现的是公平锁还是非公平锁
-
+默认是非公平锁
 
 
 
