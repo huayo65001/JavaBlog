@@ -33,20 +33,6 @@
 
 #### scanAndLockForPut()
 - 做的操作是不断地自旋`tryLock()`获取锁，当自旋次数大于指定次数时，使用`lock()`阻塞获取锁。在自旋时一直获取`hash`位置下的`HashEntry`。
-```flow
-st=>start: 开始
-op1=>operation: 获取指定位置的HashEntry
-op2=>operation: tryLock()获取锁
-op=>operation: 处理框
-cond1=>condition: 
-cond=>condition: 判断框(是或否?)
-sub1=>subroutine: 子流程
-io=>inputoutput: 输入输出框
-e=>end: 结束框
-st->op->cond
-cond(yes)->io->e
-cond(no)->sub1(right)->op
-```
 
 
 #### rehash()
