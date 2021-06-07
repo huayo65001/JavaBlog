@@ -5,7 +5,7 @@
   - [Token流程](#token流程)
   - [JWT结构](#jwt结构)
     - [header(头部)](#header头部)
-    - [playload(载荷)](#playload载荷)
+    - [payload(载荷)](#payload载荷)
     - [signature(签证)](#signature签证)
 <!-- GFM-TOC -->
 # Token
@@ -32,7 +32,7 @@ JWT由三段信息构成，这三段文本用`.`来组成一个字符串
 }
 ```
 声明类型和加密算法，然后用`BASE64`加密。
-### playload(载荷)
+### payload(载荷)
 存放有效信息的地方
 * 标准中注册的声明
 * 公共的声明
@@ -48,7 +48,7 @@ JWT由三段信息构成，这三段文本用`.`来组成一个字符串
 ### signature(签证)
 签证信息，由三部分组成：
 - **header**(BASE64后的)
-- **playload**(BASE64后的)
+- **payload**(BASE64后的)
 - **secret**
 
 这部分需要加密后的header和加密后的playload使用`.`进行组成字符串，然后通过header中声明的加密方法进行加盐`secret`组合加密。
