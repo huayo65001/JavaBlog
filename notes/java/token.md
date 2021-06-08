@@ -6,7 +6,7 @@
   - [JWT结构](#jwt结构)
     - [header(头部)](#header头部)
     - [payload(载荷)](#payload载荷)
-    - [signature(签证)](#signature签证)
+    - [signature(签证  )](#signature签证--)
 <!-- GFM-TOC -->
 # Token
 ## Session的认证
@@ -45,7 +45,7 @@ JWT由三段信息构成，这三段文本用`.`来组成一个字符串
    - **nbf**:定义在什么时间之前，该jwt都是不可用的
    - **iat**:jwt的签发时间
    - **jti**:jwt的唯一身份标识，主要用来作为一次性token，从而回避重放攻击
-### signature(签证)
+### signature(签证  )
 签证信息，由三部分组成：
 - **header**(BASE64后的)
 - **payload**(BASE64后的)
