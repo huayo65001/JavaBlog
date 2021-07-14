@@ -8,468 +8,252 @@
 - AQS底层使用了什么样的设计模式 ? 模板
 - AQS的应用示例 ?
 
-
-### ConditionObject源码
-```java
-public class ConditionObject implements Condition, java.io.Serializable {
-
-    private static final long serialVersionUID = 1173984872572414699L;
-    /** condition 队列的头节点. */
-    private transient Node firstWaiter;
-    /** condition 队列的尾节点. */
-    private transient Node lastWaiter;
-
-    /**
-     * Creates a new {@code ConditionObject} instance.
-     * 构造方法
-     */
-    public ConditionObject() { }
-
-    // Internal methods
-
-    /**
-     * Adds a new waiter to wait queue.
-     * 添加新的waiter到wait队列
-     * @return its new wait node
-     */
-    private Node addConditionWaiter() {
-        Node t = lastWaiter;
-        // If lastWaiter is cancelled, clean out.
-        // 尾节点不为空并且尾节点的状态不为condition，删除尾节点，重新给t复制，保证加入的新节点的前驱节点的状态都是CONDITION
-        if (t != null && t.waitStatus != Node.CONDITION) {
-            // 在CONDITION队列中清除状态为cancel的节点
-            unlinkCancelledWaiters();
-            t = lastWaiter;
-        }
-
-        Node node = new Node(Thread.currentThread(), Node.CONDITION);
-        if (t == null)
-            firstWaiter = node;
-        else
-            t.nextWaiter = node;
-        lastWaiter = node;
-        return node;
-    }
-
-    /**
-     * Removes and transfers nodes until hit non-cancelled one or
-     * null. Split out from signal in part to encourage compilers
-     * to inline the case of no waiters.
-     * @param first (non-null) the first node on condition queue
-     * transferForSignal(first) 转换一个节点从condition queue 到 sync queue，返回是否成功
-     * 一直循环等待节点从condition queue 转换到 sync queue
-     */
-    private void doSignal(Node first) {
-        do {
-            if ( (firstWaiter = first.nextWaiter) == null)
-                lastWaiter = null;
-            first.nextWaiter = null;
-        } while (!transferForSignal(first) &&
-                 (first = firstWaiter) != null);
-    }
-
-    /**
-     * Removes and transfers all nodes.
-     * @param first (non-null) the first node on condition queue
-     * 唤醒first之后的全部节点
-     */
-    private void doSignalAll(Node first) {
-        lastWaiter = firstWaiter = null;
-        do {
-            Node next = first.nextWaiter;
-            first.nextWaiter = null;
-            transferForSignal(first);
-            first = next;
-        } while (first != null);
-    }
-
-    /**
-     * Unlinks cancelled waiter nodes from condition queue.
-     * Called only while holding lock. This is called when
-     * cancellation occurred during condition wait, and upon
-     * insertion of a new waiter when lastWaiter is seen to have
-     * been cancelled. This method is needed to avoid garbage
-     * retention in the absence of signals. So even though it may
-     * require a full traversal, it comes into play only when
-     * timeouts or cancellations occur in the absence of
-     * signals. It traverses all nodes rather than stopping at a
-     * particular target to unlink all pointers to garbage nodes
-     * without requiring many re-traversals during cancellation
-     * storms.
-     * 在CONDITION队列中清除状态为cancel的节点
-     */
-    private void unlinkCancelledWaiters() {
-        Node t = firstWaiter;
-        Node trail = null;
-        while (t != null) {
-            Node next = t.nextWaiter;
-            if (t.waitStatus != Node.CONDITION) {
-                t.nextWaiter = null;
-                if (trail == null)
-                    firstWaiter = next;
-                else
-                    trail.nextWaiter = next;
-                if (next == null)
-                    lastWaiter = trail;
-            } else
-                trail = t;
-            t = next;
-        }
-    }
-
-    // public methods
-
-    /**
-     * Moves the longest-waiting thread, if one exists, from the
-     * wait queue for this condition to the wait queue for the
-     * owning lock.
-     *
-     * @throws IllegalMonitorStateException if {@link #isHeldExclusively}
-     *         returns {@code false}
-     */
-    public final void signal() {
-        if (!isHeldExclusively())
-            throw new IllegalMonitorStateException();
-        Node first = firstWaiter;
-        if (first != null)
-            doSignal(first);
-    }
-
-    /**
-     * Moves all threads from the wait queue for this condition to
-     * the wait queue for the owning lock.
-     *
-     * @throws IllegalMonitorStateException if {@link #isHeldExclusively}
-     *         returns {@code false}
-     */
-    public final void signalAll() {
-        if (!isHeldExclusively())
-            throw new IllegalMonitorStateException();
-        Node first = firstWaiter;
-        if (first != null)
-            doSignalAll(first);
-    }
-
-    /**
-     * Implements uninterruptible condition wait.
-     * <ol>
-     * <li> Save lock state returned by {@link #getState}.
-     * <li> Invoke {@link #release} with saved state as argument,
-     *      throwing IllegalMonitorStateException if it fails.
-     * <li> Block until signalled.
-     * <li> Reacquire by invoking specialized version of
-     *      {@link #acquire} with saved state as argument.
-     * </ol>
-     * 等待，当前线程在接到信号之前一直处于等待状态，不响应中断
-     */
-    public final void awaitUninterruptibly() {
-        Node node = addConditionWaiter();
-        int savedState = fullyRelease(node);
-        boolean interrupted = false;
-        while (!isOnSyncQueue(node)) {
-            LockSupport.park(this);
-            if (Thread.interrupted())
-                interrupted = true;
-        }
-        if (acquireQueued(node, savedState) || interrupted)
-            selfInterrupt();
-    }
-
-    /*
-     * For interruptible waits, we need to track whether to throw
-     * InterruptedException, if interrupted while blocked on
-     * condition, versus reinterrupt current thread, if
-     * interrupted while blocked waiting to re-acquire.
-     */
-
-    /** Mode meaning to reinterrupt on exit from wait */
-    private static final int REINTERRUPT =  1;
-    /** Mode meaning to throw InterruptedException on exit from wait */
-    private static final int THROW_IE    = -1;
-
-    /**
-     * Checks for interrupt, returning THROW_IE if interrupted
-     * before signalled, REINTERRUPT if after signalled, or
-     * 0 if not interrupted.
-     */
-    private int checkInterruptWhileWaiting(Node node) {
-        return Thread.interrupted() ?
-               (transferAfterCancelledWait(node) ? THROW_IE : REINTERRUPT) :
-               0;
-    }
-
-    /**
-     * Throws InterruptedException, reinterrupts current thread, or
-     * does nothing, depending on mode.
-     */
-    private void reportInterruptAfterWait(int interruptMode)
-    throws InterruptedException {
-        if (interruptMode == THROW_IE)
-            throw new InterruptedException();
-        else if (interruptMode == REINTERRUPT)
-            selfInterrupt();
-    }
-
-    /**
-     * Implements interruptible condition wait.
-     * <ol>
-     * <li> If current thread is interrupted, throw InterruptedException.
-     * <li> Save lock state returned by {@link #getState}.
-     * <li> Invoke {@link #release} with saved state as argument,
-     *      throwing IllegalMonitorStateException if it fails.
-     * <li> Block until signalled or interrupted.
-     * <li> Reacquire by invoking specialized version of
-     *      {@link #acquire} with saved state as argument.
-     * <li> If interrupted while blocked in step 4, throw InterruptedException.
-     * </ol>
-     */
-    public final void await() throws InterruptedException {
-        if (Thread.interrupted())
-            throw new InterruptedException();
-        Node node = addConditionWaiter();
-        int savedState = fullyRelease(node);
-        int interruptMode = 0;
-        while (!isOnSyncQueue(node)) {
-            LockSupport.park(this);
-            if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
-                break;
-        }
-        if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
-            interruptMode = REINTERRUPT;
-        if (node.nextWaiter != null) // clean up if cancelled
-            unlinkCancelledWaiters();
-        if (interruptMode != 0)
-            reportInterruptAfterWait(interruptMode);
-    }
-
-    /**
-     * Implements timed condition wait.
-     * <ol>
-     * <li> If current thread is interrupted, throw InterruptedException.
-     * <li> Save lock state returned by {@link #getState}.
-     * <li> Invoke {@link #release} with saved state as argument,
-     *      throwing IllegalMonitorStateException if it fails.
-     * <li> Block until signalled, interrupted, or timed out.
-     * <li> Reacquire by invoking specialized version of
-     *      {@link #acquire} with saved state as argument.
-     * <li> If interrupted while blocked in step 4, throw InterruptedException.
-     * </ol>
-     */
-    public final long awaitNanos(long nanosTimeout)
-    throws InterruptedException {
-        if (Thread.interrupted())
-            throw new InterruptedException();
-        Node node = addConditionWaiter();
-        int savedState = fullyRelease(node);
-        final long deadline = System.nanoTime() + nanosTimeout;
-        int interruptMode = 0;
-        while (!isOnSyncQueue(node)) {
-            if (nanosTimeout <= 0L) {
-                transferAfterCancelledWait(node);
-                break;
-            }
-            if (nanosTimeout >= spinForTimeoutThreshold)
-                LockSupport.parkNanos(this, nanosTimeout);
-            if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
-                break;
-            nanosTimeout = deadline - System.nanoTime();
-        }
-        if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
-            interruptMode = REINTERRUPT;
-        if (node.nextWaiter != null)
-            unlinkCancelledWaiters();
-        if (interruptMode != 0)
-            reportInterruptAfterWait(interruptMode);
-        return deadline - System.nanoTime();
-    }
-
-    /**
-     * Implements absolute timed condition wait.
-     * <ol>
-     * <li> If current thread is interrupted, throw InterruptedException.
-     * <li> Save lock state returned by {@link #getState}.
-     * <li> Invoke {@link #release} with saved state as argument,
-     *      throwing IllegalMonitorStateException if it fails.
-     * <li> Block until signalled, interrupted, or timed out.
-     * <li> Reacquire by invoking specialized version of
-     *      {@link #acquire} with saved state as argument.
-     * <li> If interrupted while blocked in step 4, throw InterruptedException.
-     * <li> If timed out while blocked in step 4, return false, else true.
-     * </ol>
-     */
-    public final boolean awaitUntil(Date deadline)
-    throws InterruptedException {
-        long abstime = deadline.getTime();
-        if (Thread.interrupted())
-            throw new InterruptedException();
-        Node node = addConditionWaiter();
-        int savedState = fullyRelease(node);
-        boolean timedout = false;
-        int interruptMode = 0;
-        while (!isOnSyncQueue(node)) {
-            if (System.currentTimeMillis() > abstime) {
-                timedout = transferAfterCancelledWait(node);
-                break;
-            }
-            LockSupport.parkUntil(this, abstime);
-            if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
-                break;
-        }
-        if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
-            interruptMode = REINTERRUPT;
-        if (node.nextWaiter != null)
-            unlinkCancelledWaiters();
-        if (interruptMode != 0)
-            reportInterruptAfterWait(interruptMode);
-        return !timedout;
-    }
-
-    /**
-     * Implements timed condition wait.
-     * <ol>
-     * <li> If current thread is interrupted, throw InterruptedException.
-     * <li> Save lock state returned by {@link #getState}.
-     * <li> Invoke {@link #release} with saved state as argument,
-     *      throwing IllegalMonitorStateException if it fails.
-     * <li> Block until signalled, interrupted, or timed out.
-     * <li> Reacquire by invoking specialized version of
-     *      {@link #acquire} with saved state as argument.
-     * <li> If interrupted while blocked in step 4, throw InterruptedException.
-     * <li> If timed out while blocked in step 4, return false, else true.
-     * </ol>
-     */
-    public final boolean await(long time, TimeUnit unit)
-    throws InterruptedException {
-        long nanosTimeout = unit.toNanos(time);
-        if (Thread.interrupted())
-            throw new InterruptedException();
-        Node node = addConditionWaiter();
-        int savedState = fullyRelease(node);
-        final long deadline = System.nanoTime() + nanosTimeout;
-        boolean timedout = false;
-        int interruptMode = 0;
-        while (!isOnSyncQueue(node)) {
-            if (nanosTimeout <= 0L) {
-                timedout = transferAfterCancelledWait(node);
-                break;
-            }
-            if (nanosTimeout >= spinForTimeoutThreshold)
-                LockSupport.parkNanos(this, nanosTimeout);
-            if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
-                break;
-            nanosTimeout = deadline - System.nanoTime();
-        }
-        if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
-            interruptMode = REINTERRUPT;
-        if (node.nextWaiter != null)
-            unlinkCancelledWaiters();
-        if (interruptMode != 0)
-            reportInterruptAfterWait(interruptMode);
-        return !timedout;
-    }
-
-    //  support for instrumentation
-
-    /**
-     * Returns true if this condition was created by the given
-     * synchronization object.
-     *
-     * @return {@code true} if owned
-     */
-    final boolean isOwnedBy(AbstractQueuedSynchronizer sync) {
-        return sync == AbstractQueuedSynchronizer.this;
-    }
-
-    /**
-     * Queries whether any threads are waiting on this condition.
-     * Implements {@link AbstractQueuedSynchronizer#hasWaiters(ConditionObject)}.
-     *
-     * @return {@code true} if there are any waiting threads
-     * @throws IllegalMonitorStateException if {@link #isHeldExclusively}
-     *         returns {@code false}
-     */
-    protected final boolean hasWaiters() {
-        if (!isHeldExclusively())
-            throw new IllegalMonitorStateException();
-        for (Node w = firstWaiter; w != null; w = w.nextWaiter) {
-            if (w.waitStatus == Node.CONDITION)
-                return true;
-        }
-        return false;
-    }
-
-    /**
-     * Returns an estimate of the number of threads waiting on
-     * this condition.
-     * Implements {@link AbstractQueuedSynchronizer#getWaitQueueLength(ConditionObject)}.
-     *
-     * @return the estimated number of waiting threads
-     * @throws IllegalMonitorStateException if {@link #isHeldExclusively}
-     *         returns {@code false}
-     */
-    protected final int getWaitQueueLength() {
-        if (!isHeldExclusively())
-            throw new IllegalMonitorStateException();
-        int n = 0;
-        for (Node w = firstWaiter; w != null; w = w.nextWaiter) {
-            if (w.waitStatus == Node.CONDITION)
-                ++n;
-        }
-        return n;
-    }
-
-    /**
-     * Returns a collection containing those threads that may be
-     * waiting on this Condition.
-     * Implements {@link AbstractQueuedSynchronizer#getWaitingThreads(ConditionObject)}.
-     *
-     * @return the collection of threads
-     * @throws IllegalMonitorStateException if {@link #isHeldExclusively}
-     *         returns {@code false}
-     */
-    protected final Collection<Thread> getWaitingThreads() {
-        if (!isHeldExclusively())
-            throw new IllegalMonitorStateException();
-        ArrayList<Thread> list = new ArrayList<Thread>();
-        for (Node w = firstWaiter; w != null; w = w.nextWaiter) {
-            if (w.waitStatus == Node.CONDITION) {
-                Thread t = w.thread;
-                if (t != null)
-                    list.add(t);
-            }
-        }
-        return list;
-    }
-}
-```
+### AQS的核心思想是什么
+如果请求的共享资源空闲，那么将请求资源的线程设置为有效工作线程，并将资源设定为锁定状态，如果请求的共享资源被占用，那么设置一套线程阻塞等待以及被唤醒时锁分配的机制，这个机制AQS是基于CLH队列锁实现的，即将暂时获得不到的锁的线程加入到队列中。
+> CLH队列是一个虚拟双向队列，即不存在队列实例，仅存在节点之间的关联关系。
 
 ### AQS核心方法
 
+#### state
+- 使用volatile修饰，保证线程可见性
+
 #### acquire
 - 以独占模式获取资源，忽略中断
+```java
+public final void acquire(int arg) {
+    if (!tryAcquire(arg) && acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
+        selfInterrupt();
+}
+
+```
 
 #### tryAcquire
 - 以独占模式获取资源
 
-#### acquireQueued
-- sync队列中的结点在独占且忽略中断的模式下获取资源
-
 #### addWaiter
 - 向同步队列添加一个节点
+```java
+// 添加等待者
+private Node addWaiter(Node node) {
+    // 新生成一个结点，默认为独占模式
+    Node node = new Node(Thread.currentThread(), node);
+    // Try the fast path of enq; backup to full enq on failure
+    // 保存尾结点
+    Node pred = tail;
+    if (pred != null) { // 尾结点不为空，即已经被初始化
+        // 将node结点的prev域连接到尾结点
+        node.prev = pred;
+        if (compareAndSetTail(pred, node)) {
+            pred.next = node;
+            return node;
+        }
+    }
+    enq(node); // 当队列还没有初始化  或者  当compareAndSetTail时，前面有节点在进行操作，导致失败
+    return node;
+}
+
+```
 
 #### enq
-- 如果sync队列还没有初始化，则会使用enq插入队列中
+- 如果sync队列还没有初始化，或者在加入尾节点时有节点在操作，则会使用enq插入队列中
+```java
+private Node enq(final Node node) {
+    for (;;) { // 无限循环，确保结点能够成功入队列
+        // 保存尾结点
+        Node t = tail;
+        if (t == null) { // 尾结点为空，即还没被初始化
+            if (compareAndSetHead(new Node())) // 头结点为空，并设置头结点为新生成的结点
+                tail = head; // 头结点与尾结点都指向同一个新生结点
+        } else { // 尾结点不为空，即已经被初始化过
+            // 将node结点的prev域连接到尾结点
+            node.prev = t;
+            if (compareAndSetTail(t, node)) { // 比较结点t是否为尾结点，若是则将尾结点设置为node
+                // 设置尾结点的next域为node
+                t.next = node;
+                return t; // 返回尾结点
+            }
+        }
+    }
+}
+```
+
+#### acquireQueued
+- sync队列中的结点在独占且忽略中断的模式下获取资源， **从后向前找**
+```java
+// sync队列中的结点在独占且忽略中断的模式下获取(资源)
+final boolean acquireQueued(final Node node, int arg) {
+    // 标志
+    boolean failed = true;
+    try {
+        // 中断标志
+        boolean interrupted = false;
+        for (;;) { // 无限循环
+            // 获取node节点的前驱结点
+            final Node p = node.predecessor();
+            // node为刚加入的节点，判断是否可以申请到资源。
+            // 如果可以，将当前节点置为头节点，虚节点，当前节点的线程已经获取到资源，不需要在队列中了。
+            // interrupted 为false，线程在处于执行状态，为true的话表示线程处于等待状态
+            if (p == head && tryAcquire(arg)) {
+                setHead(node); // 设置头结点
+                p.next = null; // help GC
+                failed = false; // 设置标志
+                return interrupted;
+            }
+            // 如果加入的节点前面还有节点或者没有获取到资源
+            // 判断在获取失败后是否需要挂起
+            if (shouldParkAfterFailedAcquire(p, node) &&
+                    parkAndCheckInterrupt())
+                interrupted = true;
+        }
+    } finally {
+        if (failed)
+            cancelAcquire(node);
+    }
+}
+```
 
 #### shouldParkAfterFailedAcquire
-- 当获取资源失败后，检查并且更新结点状态
+- 当获取资源失败后，检查并且更新结点状态，并将该节点挂起
+```java
+// 当获取(资源)失败后，检查并且更新结点状态
+private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
+    // 获取前驱结点的状态
+    int ws = pred.waitStatus;
+    if (ws == Node.SIGNAL) // 状态为SIGNAL，为-1
+        /*
+            * This node has already set status asking a release
+            * to signal it, so it can safely park.
+            */
+        // 可以进行park操作
+        return true;
+    if (ws > 0) { // 表示状态为CANCELLED，为1
+        /*
+            * Predecessor was cancelled. Skip over predecessors and
+            * indicate retry.
+            */
+        do {
+            node.prev = pred = pred.prev;
+        } while (pred.waitStatus > 0); // 找到pred结点前面最近的一个状态不为CANCELLED的结点
+        // 赋值pred结点的next域
+        pred.next = node;
+    } else { // 为PROPAGATE -3 或者是0 表示无状态,(为CONDITION -2时，表示此节点在condition queue中)
+        /*
+            * waitStatus must be 0 or PROPAGATE.  Indicate that we
+            * need a signal, but don't park yet.  Caller will need to
+            * retry to make sure it cannot acquire before parking.
+            */
+        // 比较并设置前驱结点的状态为SIGNAL
+        compareAndSetWaitStatus(pred, ws, Node.SIGNAL);
+    }
+    // 不能进行park操作
+    return false;
+}
 
-#### parkAndCheckInterrupt
+```
 
 #### cancelAcquire
 - 取消获取资源
+```java
+// 取消继续获取(资源)
+private void cancelAcquire(Node node) {
+    // Ignore if node doesn't exist
+    // node为空，返回
+    if (node == null)
+        return;
+    // 设置node结点的thread为空
+    node.thread = null;
 
+    // Skip cancelled predecessors
+    // 保存node的前驱结点
+    Node pred = node.prev;
+    while (pred.waitStatus > 0) // 找到node前驱结点中第一个状态小于0的结点，即不为CANCELLED状态的结点
+        node.prev = pred = pred.prev;
+
+    // predNext is the apparent node to unsplice. CASes below will
+    // fail if not, in which case, we lost race vs another cancel
+    // or signal, so no further action is necessary.
+    // 获取pred结点的下一个结点
+    Node predNext = pred.next;
+
+    // Can use unconditional write instead of CAS here.
+    // After this atomic step, other Nodes can skip past us.
+    // Before, we are free of interference from other threads.
+    // 设置node结点的状态为CANCELLED
+    node.waitStatus = Node.CANCELLED;
+
+    // If we are the tail, remove ourselves.
+    if (node == tail && compareAndSetTail(node, pred)) { // node结点为尾结点，则设置尾结点为pred结点
+        // 比较并设置pred结点的next节点为null
+        compareAndSetNext(pred, predNext, null); 
+    } else { // node结点不为尾结点，或者比较设置不成功
+        // If successor needs signal, try to set pred's next-link
+        // so it will get one. Otherwise wake it up to propagate.
+        int ws;
+        if (pred != head &&
+            ((ws = pred.waitStatus) == Node.SIGNAL ||
+                (ws <= 0 && compareAndSetWaitStatus(pred, ws, Node.SIGNAL))) &&
+            pred.thread != null) { // (pred结点不为头结点，并且pred结点的状态为SIGNAL)或者 
+                                // pred结点状态小于等于0，并且比较并设置等待状态为SIGNAL成功，并且pred结点所封装的线程不为空
+            // 保存结点的后继
+            Node next = node.next;
+            if (next != null && next.waitStatus <= 0) // 后继不为空并且后继的状态小于等于0
+                compareAndSetNext(pred, predNext, next); // 比较并设置pred.next = next;
+        } else {
+            unparkSuccessor(node); // 释放node的前一个结点
+        }
+
+        node.next = node; // help GC
+    }
+}
+```
 #### unparkSuccessor
 - 释放后继节点
+```java
+// 释放后继结点
+private void unparkSuccessor(Node node) {
+    /*
+        * If status is negative (i.e., possibly needing signal) try
+        * to clear in anticipation of signalling.  It is OK if this
+        * fails or if status is changed by waiting thread.
+        */
+    // 获取node结点的等待状态
+    int ws = node.waitStatus;
+    if (ws < 0) // 状态值小于0，为SIGNAL -1 或 CONDITION -2 或 PROPAGATE -3
+        // 比较并且设置结点等待状态，设置为0
+        compareAndSetWaitStatus(node, ws, 0);
 
+    /*
+        * Thread to unpark is held in successor, which is normally
+        * just the next node.  But if cancelled or apparently null,
+        * traverse backwards from tail to find the actual
+        * non-cancelled successor.
+        */
+    // 获取node节点的下一个结点
+    Node s = node.next;
+    if (s == null || s.waitStatus > 0) { // 下一个结点为空或者下一个节点的等待状态大于0，即为CANCELLED
+        // s赋值为空
+        s = null; 
+        // 从尾结点开始从后往前开始遍历
+        for (Node t = tail; t != null && t != node; t = t.prev)
+            if (t.waitStatus <= 0) // 找到等待状态小于等于0的结点，找到最前的状态小于等于0的结点
+                // 保存结点
+                s = t;
+    }
+    if (s != null) // 该结点不为为空，释放许可
+        LockSupport.unpark(s.thread);
+}
+```
 #### release
+```java
+public final boolean release(int arg) {
+    if (tryRelease(arg)) { // 释放成功
+        // 保存头结点
+        Node h = head;
+        if (h != null && h.waitStatus != 0) // 头结点不为空并且头结点状态不为0
+            unparkSuccessor(h); //释放头结点的后继结点
+        return true;
+    }
+    return false;
+}
 
+```
