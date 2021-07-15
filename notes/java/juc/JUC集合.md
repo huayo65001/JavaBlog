@@ -468,8 +468,46 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
 
 ### CopyOnWriteArrayList
 
+#### 请先说说非并发集合中Fail-fast机制? 
+- `fail-fast`机制是集合中的错误检测机制，通常出现在遍历集合元素的过程中。
+- 在进行遍历的时候，会把实时修改次数`modCount`赋给`expectedModCount`。在遍历过程中，如果有其他线程对集合中的元素进行增、删、改操作时，`modCount`会增加，此时`modCount`与`expectedModCount`不一致，就会抛出异常。
+- `fail-fast`不会保证遍历过程中真的出现错误，只是尽可能的去抛出异常。
+#### 再为什么说ArrayList查询快而增删慢? 
+- 数组的查询是对引用地址的访问，不需要遍历。而增加和删除，需要向前或向后移动元素。增加时还可能遇到扩容操作，创建一个新数组，增加length，再把元素放进去。
+#### 对比ArrayList说说CopyOnWriteArrayList的增删改查实现原理? COW基于拷贝 
+- 增：获取锁，复制当前CopyOnWriteArrayList的快照数组，存放元素，设置数组。释放锁
+- 查：复制当前CopyOnWriteArrayList的快照数组，定义为final，在遍历过程中不会出现冲突，遍历。
+- 删：获取锁，复制当前CopyOnWriteArrayList的快照数组。如果删除的位置为最后一个，复制除最后一个元素外的数组，设置数组。否则先复制开始到删除位置的数组，再复制删除位置到最后位置的数组，设置数组。释放锁
+- 改：获取锁，获得CopyOnWriteArrayList的快照数组，如果更新某个位置的元素与快照数组中某个位置的元素相同，直接设置数组。否则复制数组，更新相应位置的元素，设置数组。
+#### 再说下弱一致性的迭代器原理是怎么样的? COWIterator<E>
+- final Object[] 数组作为当前CopyOnWriteList数组的快照，对当前数组状态的引用。此数组在迭代器的生存期内不会更改，因此不可能发生冲突，不会抛出多线程修改异常。
+#### CopyOnWriteArrayList为什么并发安全且性能比Vector好? 
 
+#### CopyOnWriteArrayList有何缺陷，说说其应用场景?
+- 因为是基于对数组的复制，在写操作的时候，复制数组，会消耗内存，内容多的话可能会导致`young gc`或`full gc`。
+- 不能用于实时读的情况。虽然是保证最终一致性，但是在读的过程中，对数组的增、改、删是没有感知的，可能读到的数据还是旧的。
+- 可以用于读多写少的情况。但是慎用，消耗内存。
 ### ConcurrentLinkedQueue
 
 
 ### BlockingQueue
+
+#### 什么是BlockingDeque? 
+- BlockingDeque 是一个双端队列。当不能够插入元素时，它将阻塞试图插入对象的线程，当不能够读取对象时，它将阻塞试图读取对象的线程。
+#### BlockingQueue大家族有哪些? 
+- ArrayBlockingQueue, DelayQueue, LinkedBlockingQueue, SynchronousQueue... 
+#### BlockingQueue适合用在什么样的场景? 
+- BlockingQueue 通常用于一个线程产生对象，另一个线程消耗对象的场景。一个线程会持续的产生对象，并将其插入到队列尾部。当队列中元素满时，会阻塞当前线程，直到另一个线程在队列中取出数据时。另一个线程在队列头取对象，当队列为空时，会阻塞当前线程，直到另一个线程往队列中存放对象。
+#### BlockingQueue常用的方法? 
+#### BlockingQueue插入方法有哪些? 这些方法(add(o),offer(o),put(o),offer(o, timeout, timeunit))的区别是什么?
+- add 如果试图执行的操作无法执行，抛出异常
+- offer 如果试图执行的操作无法执行，返回一个特定的值
+- put 如果试图执行的操作无法执行，则会发生阻塞，直到能够执行。
+- offer 如果试图执行的操作无法执行，则会发生阻塞，直到能够执行。但是等待时间不会超过给定的时间，否则返回一个特定值。
+#### BlockingDeque 与BlockingQueue有何关系，请对比下它们的方法? 
+#### BlockingDeque适合用在什么样的场景? 
+- 在线程既是一个队列的生产者，也是这个队列的消费者，
+#### BlockingDeque大家族有哪些? 
+#### BlockingDeque 与 BlockingQueue实现例子?
+- LinkedBlockingQueue
+- SynchronousQueue
