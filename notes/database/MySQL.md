@@ -120,7 +120,7 @@ redo日志文件是InnoDB特有的，他是存储引擎级别的，不是MySQL�
 bin log属于MySQL级别的日志，redo log记录的东西偏向于物理性质。
 ### bin log与redo log的比较
 1. redo log大小是固定的，bin log可通过参数max_bin_log_size来设置每个bin log文件的大小。
-2. redo log属于InnoDB特有的，而bin log是MySQL层实现的，任何的引擎都可以使用bin log文件。
+2. redo log属于InnoDB特有的，记录的是在具体某个数据页上做了什么修改。而bin log是MySQL层实现的，任何的引擎都可以使用bin log文件。记录的是这个语句的原始逻辑。
 3. redo log采用循环写的方式，当写到结尾的时候，会回到开头循环写日志。bin log采用追加的方式，超过文件大小，后续的日志会记录到新的文件上。 
 4. redo log适合来做崩溃恢复。bin log适用于主从复制和数据恢复。
 5. bin log存储修改的数据，同时本次修改的bin log文件名和修改的内容在bin log中的位置记录到redo log中。在redo log最后写入commit标记。
