@@ -59,6 +59,8 @@
 
 ### SDS的底层实现结构
 #### raw 和 embstr 的区别 
+- embstr编码是专门保存短字符串的一种优化编码。
+- embstr和raw都使用redisObject和sds保存数据，区别在于，embstr的使用只分配一次内存空间(embstr和redisObject是连续的)，而raw需要分配两次内存空间(分别为redisObject和sds分配空间)。因此与raw相比，embstr的好处在于创建时少分配一次内存空间，删除时少释放一次内存空间，以及对象的所有数据连在一起，寻找方便。而embstr的坏处也很明显，如果字符串的长度增加需要分配内存时，整个redisObject和sds都需要重新分配空间，因此redis中的embstr实现为只读。
 
 ### Redis的字符串(SDS)和C语言的字符串的区别
 - 获取字符串长度的复杂度不同
@@ -131,6 +133,7 @@
 ### RDB触发方式
 
 #### 手动触发
+- save命令和bgsave命令
 
 #### 自动触发
 

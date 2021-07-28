@@ -72,7 +72,8 @@ Selector(选择器)
 ## 多路IO复用
 ### Reactor模型
 
-## mmap
+## 零内存拷贝
+
 
 ## Netty
 - Netty是什么？
