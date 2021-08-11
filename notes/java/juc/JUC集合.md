@@ -507,7 +507,6 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
 #### BlockingDeque 与BlockingQueue有何关系，请对比下它们的方法? 
 #### BlockingDeque适合用在什么样的场景? 
 - 在线程既是一个队列的生产者，也是这个队列的消费者，
-#### BlockingDeque大家族有哪些? 
 #### BlockingDeque 与 BlockingQueue实现例子?
 - LinkedBlockingQueue
 - SynchronousQueue

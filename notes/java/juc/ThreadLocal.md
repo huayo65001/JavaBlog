@@ -61,3 +61,5 @@ Thread t = new Thread() {
 ### 为什么ThreadLocal会造成内存泄露? 如何解决
 
 ### ThreadLocal的应用场景
+1. 每个线程维护一个序列号
+2. Session的管理
