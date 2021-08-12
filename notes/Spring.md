@@ -185,6 +185,9 @@ public interface TransactionDefinition {
 - 观察者模式：Spring事件驱动模型
 - 适配器模式：Spring AOP的增强或通知使用到了适配器模式，Spring MVC中也使用到了适配器模式适配Controller
 
+
+### Spring涉及到的几种设计模式
+
 ---
 
 ### MyBatis
