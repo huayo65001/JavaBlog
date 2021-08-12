@@ -149,7 +149,7 @@ ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
         - 负责监听网络事件中并调用事件处理器进行相关的I/O操作。
         - Channel为Netty网络操作抽象类，EventLoop负责处理注册到上面的Channel处理I/O操作，两者配合参与I/O操作。
     - ChannelFuture
-        - Netty是异步非阻塞的，所有操作都是异步的。因此我们不能立刻知道操作是否执行成功，我们可以通过ChannelFuture接口的addListener方法注册一个ChannelFutureListener，当操作成功或失败时，监听会自动出发并返回结果。
+        - Netty是异步非阻塞的，所有操作都是异步的。因此我们不能立刻知道操作是否执行成功，我们可以通过ChannelFuture接口的addListener方法注册一个ChannelFutureListener，当操作成功或失败时，监听会自动触发并返回结果。
     - ChannelHandler、ChannelPipeline
         - ChannelHandler是消息的具体处理器，负责读写操作、客户端连接等事情。
         - ChannelPipline是ChannelHandler的链，提供一个容器并定义了用于沿着链传播入站和出站事件流的API。
@@ -157,8 +157,8 @@ ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 
 <br>
 
-- EventloopGroup了解么？和EventLoop啥关系？
-    - EventGroup包含多个EventGroup，BossEventGroup用于接收连接，WorkerEventGroup用于具体的处理(消息的读写以及其他逻辑处理)。
+- EventLoopGroup了解么？和EventLoop啥关系？
+    - EventLoopGroup包含多个EventLoop，BossEventGroup用于接收连接，WorkerEventGroup用于具体的处理(消息的读写以及其他逻辑处理)。
     - bossGroup处理客户端连接，当客户端处理完成后，会将这个连接提交给workGroup来处理，然后workGroup负责处理其IO相关操作。
 
 <br>
