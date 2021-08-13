@@ -78,7 +78,7 @@
 - 并发读写
 Reactor分为mainReactor和subReactor，mainReactor主要进行客户端的连接的处理，处理完成之后将该连接交由sunReactor以处理客户端的网络读写。这里的subReactor则是使用一个线程池来支撑的，其读写能力将会随着线程数的增多而大大增加。对于业务操作，则是使用一个线程池，每个业务请求都只需要进行编解码和业务计算。
 ### 零拷贝
-1. mmap + write
+1. mmap + write(四次系统调用+三次拷贝)
 mmap()系统调用函数会直接把内核缓冲区里的数据`映射`到用户空间，这样，操作系统内核与用户空间就不需要再进行任何的数据拷贝操作。
 具体过程如下：
 - 应用程序调用了mmap()后，DMA会把磁盘的数据拷贝到内核的缓冲区里。接着，应用程序和操作系统`共享`这个缓冲区。
@@ -87,7 +87,7 @@ mmap()系统调用函数会直接把内核缓冲区里的数据`映射`到用户
 
 仍需要通过CPU把内核缓冲区的数据拷贝到socket缓冲区里，仍然需要4次上下文切换，因为系统调用还是2次。
 
-2. sendfile
+2. sendfile(两次系统调用+三次拷贝)
 ```c++
 #include <sys/socket.h>
 ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
@@ -98,6 +98,7 @@ ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 
 该系统调用可以直接把内核缓冲区里的数据拷贝到socket缓冲区里，不再拷贝到用户态，这样就只有2次上下文切换和3次数据拷贝。
 
+(两次系统调用+两次拷贝)
 如果网卡支持SG-DMA技术，可以进一步减少通过CPU把内核缓冲区里的数据拷贝到socket缓冲区的过程。
 
 在linux内核2.4版本开始，对于支持网卡支持SG—DMA技术的情况下，sendfile()系统调用的过程具体如下：

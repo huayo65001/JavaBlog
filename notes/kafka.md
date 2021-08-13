@@ -11,18 +11,38 @@
 - 点对点模式
 - 发布/订阅模式：推/拉 Kafka基于拉取的发布/订阅模式，消费者的消费速度可以根据自己来决定。一直维护着长轮询，可能会造成资源的浪费。
 ### Kafka架构
-- Topic
-- Partition
-- Producer
-- Consumer
+- Topic：Producer将消息发送到特定的Topic，consumer通过订阅这个Topic来消费消息。
+- Partition：Partition是Topic的一部分，一个Topic可以有多个Partition，同一Topic下的Partition可以分布在不同的Broker中。
+- Producer：消费消息的一方
+- Consumer：生产消息的一方
 - ConsumerGroup
-- Broker
-- Offset
+- Broker：可以看做是一个kafka实例，多个kafka broker组成一个kafka cluster。
+- Offset：记录Consumer对Partition中消息的消费进度。
+
+
+### Kafka和其他消息队列的区别
+
+
+### Kafka中Zookeeper的作用
+主要为Kafka提供元数据的管理功能。
+1. Broker注册：Kafka会将该Broker信息存入其中，Broker在Zookeeper中创建的是临时节点，一旦Broker故障下线，Zookeeper就会将该节点删除。同时可以基于Watcher机制监听该节点，当节点删除后做出相应反应。
+2. Topic注册：所有Broker和Topic的对应关系都由Zookeeper来维护。`/brokers/topics/{topicname}`。还完成Topic中leader的选举。
+3. Consumer的注册和负载均衡：①Consumer Group的注册`/consumers/{group_id}`。在其目录下有三个子目录。ids：一个Consumer Group有多个Consumer，ids用来记录这些Consumer。owners：记录该用户组可消费的Topic信息。offsets：记录owners中每个Topic的所有Partition的所有OffSet。②Consumer的注册：注册的是临时节点(`/consumers/{group_id}/ids/{consumer_id}`)。③负载均衡：一个Consumer Group下有多个Consumer，怎么去均匀的消费订阅消息。由Zookeeper来维护。
+4. Producer的负载均衡：
+5. 维护Partition和Consumer的关系：同一个Consumer Group订阅的任一个Partition都只能分配给一个Consumer，Partition和Consumer的对应关系路径：`/consumer/{group_id}/owners/{topic}/{broker_id-partition_id}`，该路径下的内容是该消息分区消费者的Consumer ID。这个路径也是一个临时节点，在Rebalance时会被删除。
+6. 记录消息消费的进度：在2.0版本中不再记录在Zookeeper中，而是记录在Kafka的Topic中。
 
 ### Kafka分区的目的
 实现负载均衡，分区对于消费者来说，可以提高并发度，提高效率
 ### Kafka如何做到消息的有序性？
 kafka中每个partition的写入是有序的，而且单个partition只能由一个消费者消费，可以保证里面的消息的顺序性，但是分区之间的消息是不保证有序的。
+### Kafka中leader的选举机制
+
+
+### OffSet的作用
+
+
+
 ### Kafka的高可靠性是怎么保证的？
 - Topic分区副本
 Kafka可以保证单个分区的消息是有序的，分区可以分为在线和离线，众多的分区中只有一个是leader，其他的是follower。所有的读写操作都是通过leader进行的，同时follower会定期去leader上复制数据。当leader挂了之后，follower称为leader。通过分区副本，引入了数据冗余，同时提供了Kafka的数据可靠性。
@@ -39,9 +59,9 @@ Kafka可以保证单个分区的消息是有序的，分区可以分为在线和
 ### Kafka在什么情况下会出现消息丢失？
 如果leader崩溃，另一个副本称为新的leader，那么leader新写的那些消息就可能丢失了。如果我们允许消费者去读取这些消息，可能就破坏了消息的一致性。试想：一个消费者从当前leader读取并处理了message4，这个时候leader挂掉了，选举了新的leader，这个时候另一个消费者在新的leader读取消息，发现这个消息其实并不存在，就造成了数据不一致性。
 ### Kafka数据传输的事务有几种？
-- 最多一次
-- 最少一次
-- 精确一次
+- 最多一次：消息不会被重复发送，最多被传输一次，但也有可能一次不传输
+- 最少一次：消息不会被漏发送，消息至少被传输一次，但也有可能被重复发送。
+- 精确一次：不会被漏发送也不会被重复发送，消息正好被传输一次。
 ### Kakfa高效文件存储设计特点
 - Kafka把topic中一个partition大文件分成多个小文件，通过多个小文件段，就容易定期清除或删除已经消费完文件，减少磁盘占用
 - 通过索引信息可以快速定位message和确定response大小
@@ -53,8 +73,9 @@ Kafka可以保证单个分区的消息是有序的，分区可以分为在线和
 2. leader开始分配消费方案，指定哪个consumer负责消费哪些topic的partition。一旦分配完成，leader将这个方案发送给coordinator。coordinator收到方案后，发送给每个consumer，这样组内每个消费者都能知道自己消费哪个topic的哪个分区了。
 ### Kafka为什么这么快？（高吞吐量）
 1. 顺序写入：不断追加到文件中，这个特性可以让kafka充分利用磁盘的顺序读写性能。顺序读写不需要硬盘磁头的寻道时间，只需要很少的磁盘旋转时间，所以速度远快于随机读写。
-2. Memory Mapped Files
+2. Memory Mapped Files：直接利用操作系统的page来完成文件到物理内存的映射，完成之后对物理内存的操作会直接同步到磁盘。通过内存映射的方式会大大提高IO效率，省去了用户空间到内核空间的复制。
 3. 零拷贝sendfile
 4. 分区：kafka中的topic中的内容可以被分为多个partition，每个partition又分为多个segment，每次操作都是对一小部分做操作，很轻便，同时增加了并行操作的能力。
 5. 批量发送：producer发送消息的时候，可以将消息缓存到本地，等到固定条件发送到kafka中。
 6. 数据压缩：减少传输的数据量，减轻对网络传输的压力。
+7. 高效的网络模型，Reactor
