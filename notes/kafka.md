@@ -1,4 +1,29 @@
 # Kafka
+
+<!--ts-->
+* [Kafka](#kafka)
+      * [Kafka的简介](#kafka的简介)
+      * [使用消息队列的好处](#使用消息队列的好处)
+      * [消息队列的两种模式](#消息队列的两种模式)
+      * [Kafka架构](#kafka架构)
+      * [Kafka和其他消息队列的区别](#kafka和其他消息队列的区别)
+      * [Kafka中Zookeeper的作用](#kafka中zookeeper的作用)
+      * [Kafka分区的目的](#kafka分区的目的)
+      * [Kafka如何做到消息的有序性？](#kafka如何做到消息的有序性)
+      * [Kafka中leader的选举机制](#kafka中leader的选举机制)
+      * [OffSet的作用](#offset的作用)
+      * [Kafka的高可靠性是怎么保证的？](#kafka的高可靠性是怎么保证的)
+      * [Kafka的数据一致性原理](#kafka的数据一致性原理)
+      * [Kafka在什么情况下会出现消息丢失？](#kafka在什么情况下会出现消息丢失)
+      * [Kafka数据传输的事务有几种？](#kafka数据传输的事务有几种)
+      * [Kakfa高效文件存储设计特点](#kakfa高效文件存储设计特点)
+      * [Kafka的rebalance](#kafka的rebalance)
+      * [Kafka为什么这么快？（高吞吐量）](#kafka为什么这么快高吞吐量)
+
+<!-- Added by: hanzhigang, at: 2021年 8月17日 星期二 13时51分36秒 CST -->
+
+<!--te-->
+
 ### Kafka的简介
 - Kafka是一个分布式的基于发布/订阅模式的消息队列，主要应用于大数据的实时处理领域。
 ### 使用消息队列的好处
