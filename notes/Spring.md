@@ -1,54 +1,54 @@
 # Spring
 
 <!--ts-->
-* [Spring](#spring)
-      * [Spring框架概述](#spring框架概述)
-      * [IOC是什么](#ioc是什么)
-      * [IOC容器初始化过程](#ioc容器初始化过程)
-      * [依赖注入的实现方式有哪些](#依赖注入的实现方式有哪些)
-      * [依赖注入的相关注解有哪些](#依赖注入的相关注解有哪些)
-      * [依赖注入的过程](#依赖注入的过程)
-      * [Bean的生命周期](#bean的生命周期)
-      * [Spring Bean的生命周期](#spring-bean的生命周期)
-      * [Bean的作用范围](#bean的作用范围)
-      * [如何通过XML创建Bean](#如何通过xml创建bean)
-      * [如何通过注解创建Bean](#如何通过注解创建bean)
-      * [如何通过注解配置文件](#如何通过注解配置文件)
-      * [BeanFactory，FactoryBean和ApplicationContext的区别](#beanfactoryfactorybean和applicationcontext的区别)
-      * [Spring 扩展接口](#spring-扩展接口)
-      * [循环依赖](#循环依赖)
-         * [Spring是如何解决循环依赖的？](#spring是如何解决循环依赖的)
-         * [为什么要使用三级缓存呢？二级缓存能解决循环依赖吗？](#为什么要使用三级缓存呢二级缓存能解决循环依赖吗)
-      * [什么是AOP](#什么是aop)
-      * [AOP的相关注解有哪些](#aop的相关注解有哪些)
-      * [AOP的相关术语](#aop的相关术语)
-      * [AOP的过程](#aop的过程)
-      * [什么是事务？](#什么是事务)
-      * [Spring支持两种方式的事务管理](#spring支持两种方式的事务管理)
-      * [PlatFormTransactionManager](#platformtransactionmanager)
-      * [TransactionDefinition](#transactiondefinition)
-      * [TransactionStatus](#transactionstatus)
-      * [@Tranactional注解](#tranactional注解)
-      * [Spring框架中用到了哪些设计模式？](#spring框架中用到了哪些设计模式)
-      * [Spring涉及到的几种设计模式](#spring涉及到的几种设计模式)
-      * [MyBatis](#mybatis)
-      * [#{} 和 ${} 的区别](#-和--的区别)
-      * [一级缓存是什么](#一级缓存是什么)
-      * [二级缓存是什么](#二级缓存是什么)
-      * [SpringMVC](#springmvc)
-      * [SpringMVC的处理流程](#springmvc的处理流程)
-      * [DispatcherServlet的作用](#dispatcherservlet的作用)
-      * [DispatcherServlet初始化顺序](#dispatcherservlet初始化顺序)
-      * [ContextLoaderListener初始化的上下文和DispatcherServlet初始化的上下的关系](#contextloaderlistener初始化的上下文和dispatcherservlet初始化的上下的关系)
-      * [SpringMVC有哪些组件](#springmvc有哪些组件)
-      * [SpringMVC有哪些注解](#springmvc有哪些注解)
-      * [处理器拦截器](#处理器拦截器)
-      * [SpringBoot](#springboot)
-      * [Springboot的优点](#springboot的优点)
-      * [Springboot的自动配置原理](#springboot的自动配置原理)
-      * [什么是CSRF攻击](#什么是csrf攻击)
-      * [什么是WebSockets](#什么是websockets)
-      * [SpringBoot达成的jar和普通的jar有什么区别?](#springboot达成的jar和普通的jar有什么区别)
+- [Spring](#spring)
+    - [Spring框架概述](#spring框架概述)
+    - [IOC是什么](#ioc是什么)
+    - [IOC容器初始化过程](#ioc容器初始化过程)
+    - [依赖注入的实现方式有哪些](#依赖注入的实现方式有哪些)
+    - [依赖注入的相关注解有哪些](#依赖注入的相关注解有哪些)
+    - [依赖注入的过程](#依赖注入的过程)
+    - [Bean的生命周期](#bean的生命周期)
+    - [Spring Bean的生命周期](#spring-bean的生命周期)
+    - [Bean的作用范围](#bean的作用范围)
+    - [如何通过XML创建Bean](#如何通过xml创建bean)
+    - [如何通过注解创建Bean](#如何通过注解创建bean)
+    - [如何通过注解配置文件](#如何通过注解配置文件)
+    - [BeanFactory，FactoryBean和ApplicationContext的区别](#beanfactoryfactorybean和applicationcontext的区别)
+    - [Spring 扩展接口](#spring-扩展接口)
+    - [循环依赖](#循环依赖)
+      - [Spring是如何解决循环依赖的？](#spring是如何解决循环依赖的)
+      - [为什么要使用三级缓存呢？二级缓存能解决循环依赖吗？](#为什么要使用三级缓存呢二级缓存能解决循环依赖吗)
+    - [什么是AOP](#什么是aop)
+    - [AOP的相关注解有哪些](#aop的相关注解有哪些)
+    - [AOP的相关术语](#aop的相关术语)
+    - [AOP的过程](#aop的过程)
+    - [什么是事务？](#什么是事务)
+    - [Spring支持两种方式的事务管理](#spring支持两种方式的事务管理)
+    - [PlatFormTransactionManager](#platformtransactionmanager)
+    - [TransactionDefinition](#transactiondefinition)
+    - [TransactionStatus](#transactionstatus)
+    - [@Tranactional注解](#tranactional注解)
+    - [Spring框架中用到了哪些设计模式？](#spring框架中用到了哪些设计模式)
+    - [Spring涉及到的几种设计模式](#spring涉及到的几种设计模式)
+    - [MyBatis](#mybatis)
+    - [#{} 和 ${} 的区别](#-和--的区别)
+    - [一级缓存是什么](#一级缓存是什么)
+    - [二级缓存是什么](#二级缓存是什么)
+    - [SpringMVC](#springmvc)
+    - [SpringMVC的处理流程](#springmvc的处理流程)
+    - [DispatcherServlet的作用](#dispatcherservlet的作用)
+    - [DispatcherServlet初始化顺序](#dispatcherservlet初始化顺序)
+    - [ContextLoaderListener初始化的上下文和DispatcherServlet初始化的上下的关系](#contextloaderlistener初始化的上下文和dispatcherservlet初始化的上下的关系)
+    - [SpringMVC有哪些组件](#springmvc有哪些组件)
+    - [SpringMVC有哪些注解](#springmvc有哪些注解)
+    - [处理器拦截器](#处理器拦截器)
+    - [SpringBoot](#springboot)
+    - [Springboot的优点](#springboot的优点)
+    - [Springboot的自动配置原理](#springboot的自动配置原理)
+    - [什么是CSRF攻击](#什么是csrf攻击)
+    - [什么是WebSockets](#什么是websockets)
+    - [SpringBoot达成的jar和普通的jar有什么区别?](#springboot达成的jar和普通的jar有什么区别)
 
 <!-- Added by: hanzhigang, at: 2021年 8月17日 星期二 13时52分54秒 CST -->
 
@@ -66,6 +66,7 @@
 4. 方便整合各种优秀框架
 5. 降低Java EE API的使用难度
 6. 方便进行事务操作
+
 ---
 ### IOC是什么
 IOC控制反转，实现两种方式，依赖查找和依赖注入，主要实现方式是依赖注入。之前创建对象需要new，现在将创建对象的权限交给IOC容器来完成。当容器创建对象的时候主动将它需要的依赖注入给它。
@@ -162,7 +163,11 @@ Spring通过三级缓存解决了循环依赖，其中一级缓存为单例池`s
 如果要使用二级缓存来解决循环依赖，意味着所有Bean在实例化后就要完成AOP代理，这样违背了Spring设计的原则，Spring在设计之初就是通过`AnnotationAwareAspectJAutoProxyCreator`这个后置处理器来在Bean生命周期的最后一步来完成AOP代理，而不是在实例化后就立马进行AOP代理。
 
 ---
+
 ### 什么是AOP
+AOP（Aspect Oriented Programming）是基于切面编程的，可无侵入的在原本功能的切面层添加自定义代码，一般用于日志收集、权限认证等场景。
+
+通过动态代理实现invocationHandler接口，并且把目标对象注入到代理对象中，获取应用到此方法的执行器链，如果有执行器链则创建MethodInvocation，并调用proceed方法，否则直接反射调用目标方法。
 ### AOP的相关注解有哪些
 1. @Aspect：声明被注解的类是一个切面Bean
 2. @Before：前置通知。指在某个连接点之前执行的通知。
@@ -183,7 +188,9 @@ Spring通过三级缓存解决了循环依赖，其中一级缓存为单例池`s
 1. AOP是从BeanPostProcessor后置处理器开始，后置处理器可以监听容器触发的Bean生命周期时间，向容器注册后置处理器以后，容器中管理的Bean就具备了接收IOC容器回调事件的能力。
 2. BeanPostProcessor的调用发生在SpringIOC容器完成Bean实例对象的创建和属性的依赖注入后，为Bean对象添加后置处理器的入口是initialization方法。
 3. Spring中JDK动态代理通过JdkDynamicAopProxy调用Proxy的newInstance方法来生成代理类，JdkDynamicAopProxy也实现了InvocationHandler接口，invoke方法的具体逻辑是先获取应用到此方法上的执行器链，如果有执行器则创建MethodInvocation并调用proceed方法，否则直接反射调用目标方法。因此Spring AOP对目标对象的增强是通过拦截器实现的。
+
 --- 
+
 ### 什么是事务？
 
 ### Spring支持两种方式的事务管理
