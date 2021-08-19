@@ -1,24 +1,24 @@
 # Kafka
 
 <!--ts-->
-* [Kafka](#kafka)
-      * [Kafka的简介](#kafka的简介)
-      * [使用消息队列的好处](#使用消息队列的好处)
-      * [消息队列的两种模式](#消息队列的两种模式)
-      * [Kafka架构](#kafka架构)
-      * [Kafka和其他消息队列的区别](#kafka和其他消息队列的区别)
-      * [Kafka中Zookeeper的作用](#kafka中zookeeper的作用)
-      * [Kafka分区的目的](#kafka分区的目的)
-      * [Kafka如何做到消息的有序性？](#kafka如何做到消息的有序性)
-      * [Kafka中leader的选举机制](#kafka中leader的选举机制)
-      * [OffSet的作用](#offset的作用)
-      * [Kafka的高可靠性是怎么保证的？](#kafka的高可靠性是怎么保证的)
-      * [Kafka的数据一致性原理](#kafka的数据一致性原理)
-      * [Kafka在什么情况下会出现消息丢失？](#kafka在什么情况下会出现消息丢失)
-      * [Kafka数据传输的事务有几种？](#kafka数据传输的事务有几种)
-      * [Kakfa高效文件存储设计特点](#kakfa高效文件存储设计特点)
-      * [Kafka的rebalance](#kafka的rebalance)
-      * [Kafka为什么这么快？（高吞吐量）](#kafka为什么这么快高吞吐量)
+- [Kafka](#kafka)
+    - [Kafka的简介](#kafka的简介)
+    - [使用消息队列的好处](#使用消息队列的好处)
+    - [消息队列的两种模式](#消息队列的两种模式)
+    - [Kafka架构](#kafka架构)
+    - [Kafka和其他消息队列的区别](#kafka和其他消息队列的区别)
+    - [Kafka中Zookeeper的作用](#kafka中zookeeper的作用)
+    - [Kafka分区的目的](#kafka分区的目的)
+    - [Kafka如何做到消息的有序性？](#kafka如何做到消息的有序性)
+    - [Kafka中leader分区的选举机制](#kafka中leader分区的选举机制)
+    - [OffSet的作用](#offset的作用)
+    - [Kafka的高可靠性是怎么保证的？](#kafka的高可靠性是怎么保证的)
+    - [Kafka的数据一致性原理](#kafka的数据一致性原理)
+    - [Kafka在什么情况下会出现消息丢失？](#kafka在什么情况下会出现消息丢失)
+    - [Kafka数据传输的事务有几种？](#kafka数据传输的事务有几种)
+    - [Kakfa高效文件存储设计特点](#kakfa高效文件存储设计特点)
+    - [Kafka的rebalance](#kafka的rebalance)
+    - [Kafka为什么这么快？（高吞吐量）](#kafka为什么这么快高吞吐量)
 
 <!-- Added by: hanzhigang, at: 2021年 8月17日 星期二 13时51分36秒 CST -->
 
@@ -40,7 +40,7 @@
 - Partition：Partition是Topic的一部分，一个Topic可以有多个Partition，同一Topic下的Partition可以分布在不同的Broker中。
 - Producer：消费消息的一方
 - Consumer：生产消息的一方
-- ConsumerGroup
+- ConsumerGroup：一个partition只能被消费者组里的一个消费者消费。
 - Broker：可以看做是一个kafka实例，多个kafka broker组成一个kafka cluster。
 - Offset：记录Consumer对Partition中消息的消费进度。
 
@@ -61,11 +61,21 @@
 实现负载均衡，分区对于消费者来说，可以提高并发度，提高效率
 ### Kafka如何做到消息的有序性？
 kafka中每个partition的写入是有序的，而且单个partition只能由一个消费者消费，可以保证里面的消息的顺序性，但是分区之间的消息是不保证有序的。
-### Kafka中leader的选举机制
+### Kafka中leader分区的选举机制
+- kafka在所有broker中选出一个controller，所有partition的leader的选举都由controller决定。controller会将leader的改变直接通过rpc的方式通知需要为此做出反应的broker。同时controller也负责增删topic以及replica的重新分配。
+1. controller在zookeeper注册watch，一旦有broker宕机，在zk中的节点会被删除。controller读取最新的幸存的broker。
+2. controller决定set_p，该集合包含了宕机的broker上的所有partition。
+3. 对set_p中的每一个partition，读取该partition当前的ISR。决定该partition的新leader。如果当前ISR中有至少一个Replica还幸存，则选择其中一个作为新的leader，新的ISR包含当前ISR中所有幸存的Replica。否则选择该partition中任意一个幸存的replica作为新的leader以及ISR。如果该partition的所有replica都宕机了，则将新的leader设置为-1。
+4. 将新的leader，ISR和新的leader_epoch以及controller_epoch写入目录下。
+5. 直接通过RPC向set_p相关的broker发送leaderandisrrequest命令。controller可以在一个rpc操作中发送多个命令从而提升效率。
 
+- leaderandisrrequest响应过程：①若请求中的controller epoch小于最新的controller epoch，则直接返回stalecontrollerepochcode。②对于请求中partitionStateInfos中的每一个元素，若partitionStateInfo的leader epoch小于当前replicmanager中存储的leader epoch，返回staleleaderepochcode。否则如果当前brokerid在partitionstateinfo中，则将该partition及partition存入一个名为partitionState的Map中。③筛选出partitionState中leader与当前broker id相等的所有记录存入partitionsTobeleader中，其他记录存入partitionstobefollower中。④如果partitiontobeleader不为空，对其执行makeleaders方法。⑤如果partitiontobefollower不为空，对其执行makefollowers方法。⑥若高水位线程还未启动，将其启动，并将hwThreadInitialized设为true。⑦关闭所有idle状态的fetcher。
 
 ### OffSet的作用
-
+kafka是顺序读写，具备很好的吞吐量。实现原理是
+- 每次生产消息时，都是往对应partition的文件中追加写入，而消息的被读取状态是由consumer来维护的。所以每个partition中offset一般都是连续递增的（如果开启了压缩，因为对旧数据的merge会导致不连续）
+- 被读取的消息并不会删除，所以每次都是追加写入顺序读写，具备很好的吞吐量。这也是为什么说kafka的broker是无状态的，整个过程中伴随由zookeeper的协调参与，一般是不同broker存储了不同partition或副本数据，当存在多个副本时，从那个broker读取数据时由zookeeper决定的，一般会由一台kafka作为leader(被读取)，如果该kafka不可用时，zookeeper切换到别的broker，因为broker在zookeeper上维护一个 /broker/ids/{id}的临时节点，如果kafka不可用，该节点也会被删除，kafka集群会根据该节点的信息，切换被读取的kafka
+- 实现过程是 consumer在消费消息后，向broker中有个专门维护每个consumer的offset的topic生产一条消息，记录自己当前已读的消息的offset+1的值作为新的offset的消息。当然在旧版本的实现是在zookeeper上有个节点存放这个offset，当时后面考虑性能问题，kafka改到了topic里，同时可以自由配置使用zookeeper还是使用topic。
 
 
 ### Kafka的高可靠性是怎么保证的？
@@ -103,4 +113,4 @@ Kafka可以保证单个分区的消息是有序的，分区可以分为在线和
 4. 分区：kafka中的topic中的内容可以被分为多个partition，每个partition又分为多个segment，每次操作都是对一小部分做操作，很轻便，同时增加了并行操作的能力。
 5. 批量发送：producer发送消息的时候，可以将消息缓存到本地，等到固定条件发送到kafka中。
 6. 数据压缩：减少传输的数据量，减轻对网络传输的压力。
-7. 高效的网络模型，Reactor
+7. 高效的网络模型，Reactor。
