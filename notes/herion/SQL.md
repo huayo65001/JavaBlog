@@ -114,7 +114,7 @@ binary	varbinay	二进制字符串，对应char,varchar
 
 ##### 3.日期时间
 
-datetime	8byte	日期时间
+datetime	8byte	日期时间，不依赖时区，范围1001-9999
 
 date	3byte	日期	current_data当前日期
 
@@ -122,7 +122,7 @@ time	3byte	时间	current_time当前时间
 
 year	1byte	年份
 
-timestamp	4byte	时间戳
+timestamp	4byte	时间戳，依赖时区，范围1970-2038
 
 ##### 4.枚举、集合
 

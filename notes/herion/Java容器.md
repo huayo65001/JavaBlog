@@ -165,3 +165,25 @@ Segment+HashEntry+链表。Segment是可重入锁，大小为16，HshEntry用来
 3.指定容量大小的构造方法
 
 4.指定容量大小和加载因子的构造方法
+
+### 14.PriorityQueue
+
+优先队列，默认小顶堆。
+
+
+
+自定义排序方式，构造方法内 指定容量 并 new 一个Comparator，并重写compare(o1, o2)方法，o1是当前结点，o2是父结点。当返回-1时，o1要向上移动。
+
+修改成大顶堆：
+
+```java
+PriorityQueue<Integer> queue = new PriorityQueue<>(size, new Comparator<Integer>() {
+   @Override
+    public int compare(Integer o1, Integer o2) {
+        if (o1 > o2) return -1;
+        else if (o1 == o2) return 0;
+        else return 1;
+    }
+});
+```
+

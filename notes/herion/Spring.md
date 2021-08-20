@@ -1,3 +1,5 @@
+[TOC]
+
 ### 1.Spring介绍
 
 Spring是一个轻量级开发框架，是很多模块的集合，主要模块包括核心容器，web，数据访问/继承，AOP，Aspects，工具，消息，测试模块。
@@ -219,3 +221,62 @@ TransactionDefinition接口中定义了五个表示隔离级别的常量：
 3.transient
 
 4.@Transient
+
+### 9.spring mvc流程
+
+web容器启动会通知spring初始化容器，加载Bean的定义信息并初始化Bean，之后遍历容器内的Bean，获取每个Controller对应的方法的url，将controller和url存在一个Map中。
+
+所有请求都会让DispatcherServlet处理，首先DS请求HandlerMapping找出容器内被@Controller修饰的Bean和被@RequestMapping修饰的类和方法，生成Handler和HandlerInterceptor以一个HandlerExecutionChain（处理执行链）返回；之后DS将Handler传给HandlerAdapter，HandlerAdapter会让真正的处理器处理Handler，并返回一个ModelAndView，Model是数据，View是个逻辑上的View；DS将ModelAndView传给ViewResolver处理成真正的View，渲染View并将数据填充，返回客户端。
+
+### 10.spring mvc组件
+
+1.DispatcherServlet：前端控制器，请求都会在这里处理，是整个流程控制的核心。
+
+2.Handler：处理器，完成具体的业务逻辑。
+
+3.HandlerMapping：完成url到controller的映射，DispatcherServlet通过HandlerMapping将不同请求映射到不同Handler。
+
+4.HandlerInterceptor：处理器拦截器。
+
+5.HandlerExecutionChain：处理器执行链，包括Handler和HandlerInterceptor。
+
+6.HandlerAdapter：处理器适配器，用来执行Handler。
+
+7.ModelAndView：Handler的处理结果。
+
+8.ViewResolver：视图解析器，将ModelAndView进行解析渲染和数据填充，返回给客户端。
+
+### 11.spring mvc注解
+
+1.@Controller：在类的定义处添加，将类作为Bean交给IOC容器处理。
+
+2.@RequestMapping：将url和业务方法映射起来，可以在类和方法上添加。value属性指定url的地址，method属性限制请求方法，params属性限制必须提供的参数。
+
+3.@RequestParam
+
+### 12.依赖注入
+
+##### 1.实现方法
+
+1.构造器注入
+
+IOC会检查被注入对象的构造方法，获取需要的依赖对象列表，将其注入。优点是构造完成后进入就绪状态，可以马上使用；缺点是不能继承，不能设置默认值。
+
+2.setter方法注入
+
+为对象设置setter方法，就可以通过setter方法将依赖对象注入。优点是可以被继承，能设置默认值；缺点是构造完成后不能马上进入就绪状态。
+
+3.接口注入
+
+实现某个接口，接口提供方法来进行注入。需要实现额外的接口，一般不用。
+
+##### 2.相关注解
+
+1.@Autowired：自动装配，byType。
+
+2.@Qualifier：在byType基础上byName注入。
+
+3.@Resource：byName注入。
+
+4.@Value：用于注入基本类型和String类型。
+
