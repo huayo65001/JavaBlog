@@ -231,6 +231,12 @@ synchronized相当于Lock中只有一个condition，调用notify()方法会通�
 
 **偏向锁：**为了在没有竞争的情况下减少锁的开销，锁会偏向于第一个获得它的进程，如果没有被其他线程获取，则这个线程不需要再获得锁。
 
+##### 8.哪里使用了synchronized
+
+方法被修饰：HashTable、StringBuffer
+
+代码块被修饰：ConcurrentHashMap
+
 ### 13.volatile
 
 ##### 1.为什么用
