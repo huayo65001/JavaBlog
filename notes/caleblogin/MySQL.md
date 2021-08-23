@@ -278,7 +278,6 @@ bin log属于MySQL级别的日志，redo log记录的东西偏向于物理性质
 - 对于快照读来说，也就是select，MVCC是从ReadView中读取的，不会看到新插入的行，所以就解决了幻读。
 - 对于当前读来说，也就是update/insert/delete等，是无法解决的，需要通过引入Gap锁或者Next—Key lock来解决幻读。
 - SQL规定中的RR并不能解决幻读，但是MySQL的RR是可以解决幻读的，因为MySQL的RR级别下，Gap锁默认是开启的，在RC级别下，默认是关闭的。
-
 ## union和union all的区别
 - union all：对两个结果直接进行并集操作，记录可能会有重复，不会进行排序。
 - union：对两个结果集进行并集操作，会去重，按照字段的默认规则进行排序。
