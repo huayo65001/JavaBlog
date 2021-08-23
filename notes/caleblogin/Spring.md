@@ -14,23 +14,28 @@
     - [如何通过XML创建Bean](#如何通过xml创建bean)
     - [如何通过注解创建Bean](#如何通过注解创建bean)
     - [如何通过注解配置文件](#如何通过注解配置文件)
+    - [自动注入是怎么注入的](#自动注入是怎么注入的)
     - [BeanFactory，FactoryBean和ApplicationContext的区别](#beanfactoryfactorybean和applicationcontext的区别)
     - [Spring 扩展接口](#spring-扩展接口)
     - [循环依赖](#循环依赖)
       - [Spring是如何解决循环依赖的？](#spring是如何解决循环依赖的)
+      - [能不能解决传参的循环依赖？你自己实现一个解决传参的，怎么实现？](#能不能解决传参的循环依赖你自己实现一个解决传参的怎么实现)
       - [为什么要使用三级缓存呢？二级缓存能解决循环依赖吗？](#为什么要使用三级缓存呢二级缓存能解决循环依赖吗)
+      - [三级缓存大小](#三级缓存大小)
     - [什么是AOP](#什么是aop)
     - [AOP的相关注解有哪些](#aop的相关注解有哪些)
     - [AOP的相关术语](#aop的相关术语)
     - [AOP的过程](#aop的过程)
     - [什么是事务？](#什么是事务)
     - [Spring支持两种方式的事务管理](#spring支持两种方式的事务管理)
+    - [只有public能让事务有效](#只有public能让事务有效)
+    - [Spring事务基于注解能用于分布式么？](#spring事务基于注解能用于分布式么)
+    - [spring @Transactional使用过程中踩过什么坑](#spring-transactional使用过程中踩过什么坑)
     - [PlatFormTransactionManager](#platformtransactionmanager)
     - [TransactionDefinition](#transactiondefinition)
     - [TransactionStatus](#transactionstatus)
     - [@Tranactional注解](#tranactional注解)
     - [Spring框架中用到了哪些设计模式？](#spring框架中用到了哪些设计模式)
-    - [Spring涉及到的几种设计模式](#spring涉及到的几种设计模式)
     - [MyBatis](#mybatis)
     - [#{} 和 ${} 的区别](#-和--的区别)
     - [一级缓存是什么](#一级缓存是什么)
@@ -131,6 +136,12 @@ IOC控制反转，实现两种方式，依赖查找和依赖注入，主要实�
 5. @Bean 被Bean注解的方法返回值是一个对象，将会被实例化，配置和初始化一个对象返回，这个对象只能由Spring IOC容器来管理。
 ### 如何通过注解配置文件
 
+
+### 自动注入是怎么注入的
+1. 先讲到populateBean方法进行属性注入。
+2. 属性注入方法中会从IOC容器中得到所有的后置处理器，其中就包括 AutowiredAnnotationBeanPostProcessor，然后调用 postProcessPropertyValues 进行 autowire 自动注入。
+3. AutowiredAnnotationBeanPostProcessor利用反射得到autowire元注解信息，得到需要注入的bean,封装成InjectionMetadata
+调用 InjectionMetadata.inject 进行自动注入，之后解析注入的Bean，得到Bean的实例 ，然后通过反射机制给autowire的字段注入Bean的实例。
 ### BeanFactory，FactoryBean和ApplicationContext的区别
 - BeanFactory是一个Bean工厂，使用了简单工厂模式，是Spring IOC容器的顶级接口，可以理解为含有Bean集合的工厂类，负责Bean的实例化，依赖注入，BeanFactory实例化后并不会实例化这些Bean，只有当用到的时候才去实例化，采用懒汉式，适合多例模式。
 - FactoryBean是一个工厂Bean，使用了工厂方法模式，作用是生产其他的Bean实例，通过实现接口，通过一个工厂方法来实现自定义实例化Bean的逻辑。
@@ -146,6 +157,8 @@ IOC控制反转，实现两种方式，依赖查找和依赖注入，主要实�
 - 缓存分为三级：1. `singletonObjects`，一级缓存，存储的是所有创建好了的单例Bean。2. `earlySingletonObjects`，完成实例化，但是还未进行属性注入及初始化对象。3. `singletonFactories`，提前暴露的一个单例工厂，二级缓存中存储的就是这个从工厂中获取的对象。
 - 每个缓存的作用：1. 一级缓存中存放的是已经完全创建好的单例Bean。2. 三级缓存中存放的是在完成Bean的实例化后，属性注入之前Spring将Bean包装成一个工厂。
 #### Spring是如何解决循环依赖的？
+在完成Bean的实例化后，属性注入之前Spring将Bean包装成一个工厂添加进了三级缓存中
+
 Spring通过三级缓存解决了循环依赖，其中一级缓存为单例池`singletonObjects`，二级缓存为早期曝光对象`earlySingletonObjects`，三级缓存为早期曝光对象工厂`singletonFactories`。
 
 当A、B两个类发生循环引用时，在A完成实例化后，就使用实例化后的对象去创建一个对象工厂，并添加到三级缓存中，如果A被AOP代理，那么通过这个工厂获取到的就是A代理后的对象，如果A没有被AOP代理，那么这个工厂获取到的就是A实例化后的对象。
@@ -154,13 +167,17 @@ Spring通过三级缓存解决了循环依赖，其中一级缓存为单例池`s
 
 第一步，先获取到三级缓存中的工厂；
 
-第二步，调用对象工厂的getObject方法来获取到对应的对象，得到这个对象后将其注入到B中。紧接着B会走完它的生命周期，包括初始化、后置处理器等。
+第二步，调用对象工厂的getObject方法来获取到对应的对象，得到这个对象后将其注入到B中。然后将A放入二级缓存中，删除三级缓存中的A。紧接着B会走完它的生命周期，包括初始化、后置处理器等。
 
-当B创建完后，会将B再注入到A中，此时A再完成它的整个生命周期。至此，循环依赖结束。
+当B创建完后，放入一级缓存，删除二级缓存中的B。接着会将B再注入到A中，此时A再完成它的整个生命周期。将A放入一级缓存中，删除二级缓存中的A。至此，循环依赖结束。
+#### 能不能解决传参的循环依赖？你自己实现一个解决传参的，怎么实现？
+- 依赖注入的方式不能全是构造器注入的方式
 
 #### 为什么要使用三级缓存呢？二级缓存能解决循环依赖吗？
+这个工厂的目的在于延迟对实例化阶段生成的对象的代理，只有真正发生循环依赖的时候，才去提前生成代理对象，否则只会创建一个工厂并将其放入到三级缓存中，但是不会去通过这个工厂去真正创建对象中
 
 如果要使用二级缓存来解决循环依赖，意味着所有Bean在实例化后就要完成AOP代理，这样违背了Spring设计的原则，Spring在设计之初就是通过`AnnotationAwareAspectJAutoProxyCreator`这个后置处理器来在Bean生命周期的最后一步来完成AOP代理，而不是在实例化后就立马进行AOP代理。
+#### 三级缓存大小
 
 ---
 
@@ -195,6 +212,13 @@ AOP（Aspect Oriented Programming）是基于切面编程的，可无侵入的�
 
 ### Spring支持两种方式的事务管理
 声明式事务管理和编程式事务管理
+### 只有public能让事务有效
+只要是以代理方式实现的声明式事务，无论是JDK动态代理，还是CGLIB直接写字节码生成代理，都只有public方法上的事务注解才起作用。而且必须在代理类外部调用才行，如果直接在目标类里面调用，事务照样不起作用。
+### Spring事务基于注解能用于分布式么？
+### spring @Transactional使用过程中踩过什么坑
+- 在 @Transactional 注解中如果不配置rollbackFor属性,那么事物只会在遇到RuntimeException的时候才会回滚，加上 rollbackFor=Exception.class,可以让事物在遇到非运行时异常时也回滚。
+- 非public方法。
+- 事务方法内部捕捉了异常，没有抛出新的异常，导致事务操作不会进行回滚
 ### PlatFormTransactionManager
 事务管理器，Spring事务策略的核心
 Spring并不直接管理事务，而是提供了多种事务管理器。Spring事务管理器的接口是PlatFormTransactionManager
@@ -246,9 +270,6 @@ public interface TransactionDefinition {
 - 包装器设计模式：我们的项目需要连接多个数据库，而且不同的客户在每次访问中根据需要访问不同的数据库，这种模式会让我们根据客户的需求能够动态切换不同的数据源。
 - 观察者模式：Spring事件驱动模型
 - 适配器模式：Spring AOP的增强或通知使用到了适配器模式，Spring MVC中也使用到了适配器模式适配Controller
-
-
-### Spring涉及到的几种设计模式
 
 ---
 
