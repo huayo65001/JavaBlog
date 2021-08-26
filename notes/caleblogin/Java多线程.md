@@ -21,8 +21,6 @@
 1. 互斥同步：Synchronized，Reentrantlock
 2. 非阻塞同步：CAS
 3. 无同步方案：线程隔离ThreadLocal
-## JMM模型
-1. as-if-sea
 ## 线程状态转换
 新建状态，就绪状态，运行状态，阻塞状态，结束状态
 ## 线程使用方式
@@ -55,7 +53,14 @@
 
 ## volatile
 ### 可见性
-总线嗅探机制，volatile修饰的变量会直接强制刷回主存，此时缓存中的该变量失效，读取时重新在主存中读取该变量。
+总线嗅探机制，CPU需要每时每刻监听总线上的一切活动，总线嗅探只是保证了某个CPU核心的Cache更新数据这个事件能被其他的CPU核心知道，但不能保证事务串行化。volatile修饰的变量会直接强制刷回主存，此时缓存中的该变量失效，读取时重新在主存中读取该变量。
+### MESI机制
+- 四个状态：已失效、独占、共享、已修改
+#### 有了MESI为什么还需要Volatile
+1. 不止操作系统做了指令的重排序，编译器和虚拟机都做了指令的重排序，所以需要volatile。
+2. mesi只是保证多核cpu的独占cache之间的一致性，但是cpu的并不是直接把数据写入L1 cache的，中间可能还有store buffer，因此有mesi机制是远远不够的。
+3. mesi协议最多只是保证了对于一个变量，在多个核上的读写顺序，对于多个变量而言是没有任何保证的。
+4. mesi对于这种弱一致性的cpu来说，只会保证指令之间的有比如控制依赖，数据依赖，地址依赖等等依赖关系的指令间的提交的先后顺序，而对于完全没有依赖关系的指令，它们是不会保证执行提交的顺序的，除非你使用了volatile，java把volatile编译成arm和power能够识别的barrier指令，这时候才是按照顺序的。
 ### 有序性
 内存屏障，storestore 禁止上面的普通写和下面的volatile写重排序。，storeload防止上面的 volatile 写与下面可能有的 volatile 读/写重排序。，loadload，loadstore禁止下面所有的普通读写操作和上面的 volatile 读重排序。
 ## final
@@ -94,6 +99,8 @@
 
 ## ConcurrentHashMap
 1.7使用Segment+HashEntry分段锁的方式实现，1.8则抛弃了Segment，改为使用CAS+synchronized+Node实现，同样也加入了红黑树，避免链表过长导致性能的问题。
+### ConcurrentHashMap怎么实现线程安全
+
 ### 1.7
 1. 1.7版本的ConcurrentHashMap采用分段锁机制，里面包含一个Segment数组，Segment继承与ReentrantLock，Segment则包含HashEntry的数组，HashEntry本身就是一个链表的结构，具有保存key、value的能力能指向下一个节点的指针。实际上就是相当于每个Segment都是一个HashMap，默认的Segment长度是16，也就是支持16个线程的并发写，Segment之间相互不会受到影响。
 2. 初始的默认大小是2，当put第二个的时候，进行扩容。先扩容再添加元素。
@@ -103,6 +110,7 @@
 ### 1.8
 1. put流程：①首先计算hash，遍历node数组，如果node是空的话，就通过CAS+自旋的方式初始化。②如果当前数组位置是空则直接通过CAS自旋写入数据。③如果hash==MOVED，说明需要扩容，执行扩容。④如果都不满足，就使用synchronized写入数据，写入数据同样判断链表、红黑树，链表写入和HashMap的方式一样，key hash一样就覆盖，反之就尾插法，链表长度超过8就转换成红黑树。
 2. get流程：通过key计算hash，如果key hash相同就返回，如果是红黑树按照红黑树获取，都不是就遍历链表获取。
+3. 为什么到8才转成红黑树：因为通常情况下，链表长度很难达到8，但是特殊情况下链表长度为8，哈希表容量又很大，造成链表性能很差的时候，只能采用红黑树提高性能，这是一种应对策略。
 ## BlockingQueue
 - ArrayBlockingQueue(数组阻塞队列)，DelayQueue(延迟阻塞队列)，LinkedBlockingQueue(链阻塞队列)，PriorityBlockingQueue(具有优先级的阻塞队列)，SynchronousQueue(同步队列)。
 - 四组不同的行为方式：(add,remove,element) 抛出异常。(offer,poll,peek) 返回特定值。(put,take) 阻塞。(offer,poll) 超时。
@@ -121,10 +129,45 @@ firstTask执行完成之后，通过getTask方法从阻塞队列中获取等待�
 ### exectue方法中为什么double check线程池的状态
 在多线程环境下，线程池的状态时刻在变化，而ctl.get()是非原子操作，很有可能刚获取了线程池状态后线程池状态就改变了。判断是否将command加入workque是线程池之前的状态。倘若没有double check，万一线程池处于非running状态(在多线程环境下很有可能发生)，那么command永远不会执行。
 ### 几种常见的线程池
+- newFixedThreadPool
+```java
+public static ExecutorService newFixedThreadPool(int nThreads) {
+    return new ThreadPoolExecutor(nThreads, nThreads,
+                                0L, TimeUnit.MILLISECONDS,
+                                new LinkedBlockingQueue<Runnable>());
+}
+```
+线程池里的线程数量达到核心线程数后，即时线程池没有可执行任务，也不会释放线程。FixedThreadPool的工作队列为无界队列，线程池里的线程数量不会超过核心线程数，这导致最大线程数和存活时间是一个无用参数。饱和策略也失效。
+- newSingleThreadExecutor
+```java
+public static ExecutorService newSingleThreadExecutor() {
+    return new FinalizableDelegatedExecutorService
+        (new ThreadPoolExecutor(1, 1,
+                                0L, TimeUnit.MILLISECONDS,
+                                new LinkedBlockingQueue<Runnable>()));
+}
+```
+初始化的线程池只有一个线程，该线程异常结束，会重新创建一个新的线程继续执行任务，唯一的线程可以保证所提交任务的顺序执行。由于使用无界队列，饱和策略失效。
+- newCachedThreadPool
+```java
+public static ExecutorService newCachedThreadPool() {
+    return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                                    60L, TimeUnit.SECONDS,
+                                    new SynchronousQueue<Runnable>());
+}
+```
+线程池的线程数可达到Integer.MAX_VALUE，即2147483647，内部使用SynchronousQueue作为阻塞队列。
 ### 关闭线程池
+- shutdown()：中断所有没有正在执行任务的线程，线程池中的线程状态设置为SHUTDOWN状态。
+- shutdownnow()：线程池里的线程状态设置为STOP状态，然后停止所有正在执行或暂停任务的线程。
 ## 线程工具类，CountDownLatch，CyclicBarrier，Semaphore
-
+1. CountDownLatch 是一个线程等待其他线程， CyclicBarrier 是多个线程互相等待。
+2. CountDownLatch 的计数是减 1 直到 0，CyclicBarrier 是加 1，直到指定值。
+3. CountDownLatch 是一次性的， CyclicBarrier  可以循环利用。
+4. CyclicBarrier 可以在最后一个线程达到屏障之前，选择先执行一个操作。
+5. Semaphore ，需要拿到许可才能执行，并可以选择公平和非公平模式
 ## ThreadLocal
-1. ThreadLocal可以理解为线程本地变量，他会在每个线程都创建一个副本，那么在线程之间访问内部副本变量就行了，做到了线程之间互相隔离，相比于synchronized的做法是用空间来换时间。ThreadLocal有一个静态内部类ThreadLocalMap，ThreadLocalMap又包含了一个Entry数组，Entry本身是一个弱引用，他的key是指向ThreadLocal的弱引用，Entry具备了保存key value键值对的能力。
+1. ThreadLocal可以理解为线程本地变量，他会在每个线程都创建一个副本，那么在线程之间访问内部副本变量就行了，做到了线程之间互相隔离，相比于synchronized的做法是用空间来换时间。**ThreadLocal有一个静态内部类ThreadLocalMap**，ThreadLocalMap又包含了一个Entry数组，Entry本身是一个弱引用，他的key是指向ThreadLocal的弱引用，Entry具备了保存key value键值对的能力。
 2. 弱引用的目的是为了防止内存泄露，如果是强引用那么ThreadLocal对象除非线程结束否则始终无法被回收，弱引用则会在下一次GC的时候被回收。但是这样还是会存在内存泄露的问题，假如key和ThreadLocal对象被回收之后，entry中就存在key为null，但是value有值的entry对象，但是永远没办法被访问到，同样除非线程结束运行。但是只要ThreadLocal使用恰当，在使用完之后调用remove方法删除Entry对象，实际上是不会出现这个问题的。
 3. 清理过期entry的方法，探测式清理和启发式清理。
+- 应用场景：数据库管理，SimpleDateFormat，每个线程内保存类似于全局变量的信息，可以让不同方法直接使用，避免参数传递的麻烦，却不想被多线程共享。全局存储用户信息。

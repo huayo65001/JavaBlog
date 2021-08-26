@@ -94,6 +94,8 @@ IOC控制反转，实现两种方式，依赖查找和依赖注入，主要实�
 2. @Qualifier 按照类型，Bean的id进行注入
 3. @Resource 按照Bean的id进行注入，只能注入Bean类型
 4. @Value 只能注入基本数据类型和String类型
+
+@Autowired 可以对成员变量、方法以及构造函数进行注释
 ### 依赖注入的过程
 1. 当IOC容器被初始化完之后，调用doGetBean方法来实现依赖注入。具体方法是通过BeanFactory的createBean完成，通过触发createBeanInstance方法来创建对象实例和populateBean对其Bean属性依赖进行注入。
 2. 依赖注入的过程就是将创建的Bean对象实例设置到所依赖的Bean对象的属性上。真正的依赖注入通过setPropertyValues方法实现的。

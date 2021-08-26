@@ -20,6 +20,11 @@
     - [多路IO复用](#多路io复用)
       - [Reactor模型](#reactor模型)
     - [零拷贝](#零拷贝)
+    - [select、poll、epoll](#selectpollepoll)
+      - [select](#select)
+      - [poll](#poll)
+      - [epoll](#epoll)
+    - [select、poll、epoll的区别](#selectpollepoll的区别)
 
 <!-- Added by: hanzhigang, at: 2021年 8月17日 星期二 13时51分20秒 CST -->
 
@@ -134,3 +139,28 @@ ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 - 第二步：缓冲区描述符和数据长度传到socket缓冲区，这样网卡的SG-DMA控制器就可以直接将内核缓冲中的数据拷贝到网卡的缓冲区里，此过程不需要将数据从操作系统内核缓冲区拷贝到socket缓冲区中，这样就减少了一次数据拷贝。
 
 3. 大文件使用异步 + 直接IO，不使用零拷贝，因为零拷贝会用到PageCache(磁盘高速缓存)，PageCache主要用来就IO的数据进行合并以及预读。将大文件放到PageCache中会造成大文件很快填满PageCache，造成很多小的热点文件不能被读到。(将数据拷贝到内核缓冲区中，这个内核缓冲区说的就是磁盘高速缓存)。
+### select、poll、epoll
+#### select
+```c++
+int select(int maxfdp, fd_set *readset, fd_set *writeset, 
+            fd_set *exceptset, struct timeval *timeout);
+```
+- 基本原理：select函数监视的文件描述符分为三类，writefds，readfds和exceptfds。调用select时会被阻塞，直到有fd就绪或者超时，函数返回一个大于0的值，遍历文件描述符fd_set，来找到就绪的描述符。
+- maxfdp是一个整数值，是指集合中所有文件描述符的范围，即所有最大文件描述符+1。fd_set是以位图的形式存储这些文件描述符，maxfdp定义了位图中有效的位的个数。
+- 时间复杂度O(n)，n为文件描述符fd_set的大小。文件描述符最大限制1024。
+#### poll
+```c++
+int poll ( struct pollfd * fds, unsigned int nfds, int timeout);
+```
+- poll定义了一个pollfd结构的数组，用于存放需要检测其状态的所有文件描述符，调用poll的时候不会清空这个数组，特别对于文件描述符比较多的情况，在一定程度上提高了查询的效率。这和select有很大的不同，在每次调用select之后，都会清空它检测的文件描述符集合，导致每次调用select都必须把文件描述符重新加入到待检测的文件描述符集合中。因此select适合只检测一个文件描述符的情况，而poll适合检测大量文件描述符的情况。
+- 时间复杂度：O(n)，n是文件描述符集合的大小。文件描述符没有最大限制。
+#### epoll
+- 将所有文件描述符存储在共享内存中(用户空间和内核空间可以直接访问)。调用epoll_create函数创建epoll对象，并以红黑树的结构存储在内核空间，epoll_ctl函数用来在红黑树中添加或注销监视文件描述符，最后调用epoll_wait函数直到有就绪的文件描述符，立即返回给用户态进程。
+- 时间复杂度O(1)，文件描述符最大限制能打开的fd的上限远大于1024。
+- epoll的两种工作方式：LT：水平触发，若就绪事件一次没有处理完所有要做的事件，就会一直处理，即就会把没有处理完的事件继续放回就绪队列中，一直进行处理。ET：边缘触发，就绪处理事件只处理一次，若没有处理完，会在下次事件就绪时继续处理。如果后续没有就绪的事件，那么剩余的那部分数据也会随之而丢失。
+### select、poll、epoll的区别
+1. select 应用场景 select 的 timeout 参数精度为 1ns，而 poll 和 epoll 为 1ms，因此 select 更加适用于实时要求更高的场景，比如核反应堆的控制。 select 可移植性更好，几乎被所有主流平台所支持。
+2. poll 应用场景 poll 没有最大描述符数量的限制，如果平台支持并且对实时性要求不高，应该使用 poll 而不是 select。 需要同时监控小于 1000 个描述符，就没有必要使用 epoll，因为这个应用场景下并不能体现 epoll 的优势。 需要监控的描述符状态变化多，而且都是非常短暂的，也没有必要使用 epoll。因为 epoll 中的所有描述符都存储在内核中，造成每次需要对描述符的状态改变都需要通过 epoll_ctl() 进行系统调用，频繁系统调用降低效率。并且epoll 的描述符存储在内核，不容易调试。 
+3. epoll 应用场景 只需要运行在 Linux 平台上，并且有非常大量的描述符需要同时轮询，而且这些连接最好是长连接。
+4. 传递方式：select和poll都是内核到用户，epoll则是共享内存。
+5. 在select和poll中，进程只有在调用方法后，内核才对所有监视的文件描述符进行扫描，发现有任何一个文件描述符就绪或者超时，就会立即返回。而epoll则是基于事件的就绪通知方式，事先通过epoll_ctl来注册一个文件描述符，一旦基于某个文件描述符就绪时，内核会采用callback的回调机制，迅速激活这个文件描述符，当进程调用epoll_wait时就会得到通知。
