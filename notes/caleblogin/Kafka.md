@@ -6,6 +6,7 @@
     - [使用消息队列的好处](#使用消息队列的好处)
     - [消息队列的两种模式](#消息队列的两种模式)
     - [Kafka架构](#kafka架构)
+    - [Kafka的特点](#kafka的特点)
     - [Kafka和其他消息队列的区别](#kafka和其他消息队列的区别)
     - [Kafka中Zookeeper的作用](#kafka中zookeeper的作用)
     - [Kafka分区的目的](#kafka分区的目的)
@@ -44,6 +45,13 @@
 - Broker：可以看做是一个kafka实例，多个kafka broker组成一个kafka cluster。
 - Offset：记录Consumer对Partition中消息的消费进度。
 
+### Kafka的特点
+1. 高吞吐量、低延迟：kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒，每个主题可以 分多个分区, 消费组对分区进行消费操作；
+2. 可扩展性：kafka集群支持热扩展；
+3. 持久性、可靠性：消息被持久化到本地磁盘，并且支持数据备份防止数据丢失；
+4. 容错性：允许集群中节点失败（若副本数量为n,则允许n-1个节点失败）；
+5. 高并发：支持数千个客户端同时读写；
+
 
 ### Kafka和其他消息队列的区别
 
@@ -74,7 +82,7 @@ kafka中每个partition的写入是有序的，而且单个partition只能由一
 ### OffSet的作用
 kafka是顺序读写，具备很好的吞吐量。实现原理是
 - 每次生产消息时，都是往对应partition的文件中追加写入，而消息的被读取状态是由consumer来维护的。所以每个partition中offset一般都是连续递增的（如果开启了压缩，因为对旧数据的merge会导致不连续）
-- 被读取的消息并不会删除，所以每次都是追加写入顺序读写，具备很好的吞吐量。这也是为什么说kafka的broker是无状态的，整个过程中伴随由zookeeper的协调参与，一般是不同broker存储了不同partition或副本数据，当存在多个副本时，从那个broker读取数据时由zookeeper决定的，一般会由一台kafka作为leader(被读取)，如果该kafka不可用时，zookeeper切换到别的broker，因为broker在zookeeper上维护一个 /broker/ids/{id}的临时节点，如果kafka不可用，该节点也会被删除，kafka集群会根据该节点的信息，切换被读取的kafka
+- 被读取的消息并不会删除，所以每次都是追加写入顺序读写，具备很好的吞吐量。
 - 实现过程是 consumer在消费消息后，向broker中有个专门维护每个consumer的offset的topic生产一条消息，记录自己当前已读的消息的offset+1的值作为新的offset的消息。当然在旧版本的实现是在zookeeper上有个节点存放这个offset，当时后面考虑性能问题，kafka改到了topic里，同时可以自由配置使用zookeeper还是使用topic。
 
 

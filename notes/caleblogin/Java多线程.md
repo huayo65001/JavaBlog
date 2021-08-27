@@ -1,5 +1,6 @@
 # java多线程
-
+<!--ts-->
+<!--te-->
 ## 并发出现问题的根源：并发三要素
 1. 原子性：分时复用引起的，操作系统增加了进程、线程以分时复用CPU，进而均衡CPU与IO设备之间的速度差异。引出了原子性问题
 2. 可见性：CPU缓存引起的，CPU增加了缓存，以均衡和内存之间的速度差异，引出了可见性的问题。
@@ -107,12 +108,15 @@
 3. put流程：①计算hash，定位到segment，segment如果是空就先初始化。②使用ReentrantLock加锁，如果获取锁失败则尝试自旋，自旋超过次数就阻塞获取，保证一定获取锁成功。③遍历HashEntry，就是和HashMap一样，数组中key和hash一样就直接替换，不存在就再插入链表，链表同样。
 4. get流程：get也很简单，key通过hash定位到segment，再遍历链表定位到具体的元素上，需要注意的是value是volatile的，所以get是不需要加锁的。
 5. get方法的安全性分析：（1）put 操作的线程安全性。初始化槽，这个我们之前就说过了，使用了 CAS 来初始化 Segment 中的数组。 添加节点到链表的操作是插入到表头的，所以，如果这个时候 get 操作在链表遍历的过程已经到了中间，是不会影响的。当然，另一个并发问题就是 get 操作在 put 之后，需要保证刚刚插入表头的节点被读取，这个依赖于 setEntryAt 方法中使用的 UNSAFE.putOrderedObject。 扩容。扩容是新创建了数组，然后进行迁移数据，最后面将 newTable 设置给属性 table。所以，如果 get 操作此时也在进行，那么也没关系，如果 get 先行，那么就是在旧的 table 上做查询操作；而 put 先行，那么 put 操作的可见性保证就是 table 使用了 volatile 关键字。 remove 操作的线程安全性。（2）remove 操作。get 操作需要遍历链表，但是 remove 操作会"破坏"链表。 如果 remove 破坏的节点 get 操作已经过去了，那么这里不存在任何问题。 如果 remove 先破坏了一个节点，分两种情况考虑。 1、如果此节点是头结点，那么需要将头结点的 next 设置为数组该位置的元素，table 虽然使用了 volatile 修饰，但是 volatile 并不能提供数组内部操作的可见性保证，所以源码中使用了 UNSAFE 来操作数组，请看方法 setEntryAt。2、如果要删除的节点不是头结点，它会将要删除节点的后继节点接到前驱节点中，这里的并发保证就是 next 属性是 volatile 的。
+6. 扩容机制：从头结点开始向后遍历，找到当前链表的最后几个下标相同的连续的节点。从lastRun节点到尾结点的这部分就可以整体迁移到新数组的对应下标位置了，因为它们的下标都是相同的，可以这样统一处理。从头结点到 lastRun 之前的节点，无法统一处理，只能一个一个去复制了。且注意，这里不是直接迁移，而是复制节点到新的数组，旧的节点会在不久的将来，因为没有引用指向，被 JVM 垃圾回收处理掉。
+7. size()：采用乐观的方式，认为在统计size的过程中没有发生put，remove等改变segment结构的操作。但是如果发生了就需要重试。如果重试两次都不成功，就只能强制把所有的Segment加锁后，再统计。
 ### 1.8
 1. put流程：①首先计算hash，遍历node数组，如果node是空的话，就通过CAS+自旋的方式初始化。②如果当前数组位置是空则直接通过CAS自旋写入数据。③如果hash==MOVED，说明需要扩容，执行扩容。④如果都不满足，就使用synchronized写入数据，写入数据同样判断链表、红黑树，链表写入和HashMap的方式一样，key hash一样就覆盖，反之就尾插法，链表长度超过8就转换成红黑树。
 2. get流程：通过key计算hash，如果key hash相同就返回，如果是红黑树按照红黑树获取，都不是就遍历链表获取。
-3. 为什么到8才转成红黑树：因为通常情况下，链表长度很难达到8，但是特殊情况下链表长度为8，哈希表容量又很大，造成链表性能很差的时候，只能采用红黑树提高性能，这是一种应对策略。
+3. 扩容机制：在元素迁移的时候，所有线程遵循从后向前推进的规则，在线程迁移过程中会确定一个范围，限定它此次迁移的数据范围。比如A线程第一个进来，只能迁移index=7 和 6 的数据，此时其他线程不能迁移这部分数据了，只能继续向前推进，寻找其他可以迁移的数据范围。且每次推进的步长都是固定值。线程B发现线程A正在迁移6 7的数据，只能向前寻找，迁移bound4和5的数据。维护了一个全局的transferIndex,来表示所有线程总共推进到元素下标的位置。比如当线程A第一次迁移成功后又向前推进，迁移2，3的数据，此时托没有其他线程在帮助迁移，则transferIndex为2。
+4. 为什么到8才转成红黑树：因为通常情况下，链表长度很难达到8，但是特殊情况下链表长度为8，哈希表容量又很大，造成链表性能很差的时候，只能采用红黑树提高性能，这是一种应对策略。
 ## BlockingQueue
-- ArrayBlockingQueue(数组阻塞队列)，DelayQueue(延迟阻塞队列)，LinkedBlockingQueue(链阻塞队列)，PriorityBlockingQueue(具有优先级的阻塞队列)，SynchronousQueue(同步队列)。
+- ArrayBlockingQueue(数组阻塞队列，先进先出)，DelayQueue(延迟阻塞队列)，LinkedBlockingQueue(链阻塞队列，先进先出)，PriorityBlockingQueue(具有优先级的阻塞队列)，SynchronousQueue(同步队列)。
 - 四组不同的行为方式：(add,remove,element) 抛出异常。(offer,poll,peek) 返回特定值。(put,take) 阻塞。(offer,poll) 超时。
 - SynchronousQueue 是一个特殊的队列，它的内部同时只能够容纳单个元素。如果该队列已有一元素的话，试图向队列中插入一个新元素的线程将会阻塞，直到另一个线程将该元素从队列中抽走。同样，如果该队列为空，试图向队列中抽取一个元素的线程将会阻塞，直到另一个线程向队列中插入了一条新的元素。据此，把这个类称作一个队列显然是夸大其词了。它更多像是一个汇合点。
 ## JUC线程池ThreadPoolExecutor
@@ -125,11 +129,11 @@
 firstTask执行完成之后，通过getTask方法从阻塞队列中获取等待的任务，如果队列中没有任务，getTask方法会被阻塞并挂起，不会占用cpu资源
 1. execute：（1）如果当前线程池中的线程数小于核心线程数，执行addWorker创建新线程执行command任务。（2）否则，当线程池处于Running状态，把提交的任务成功放入阻塞队列中时，double check线程池的状态，如果线程池没有running，成功从阻塞队列中删除任务，执行reject方法处理任务。如果当前线程池处于running状态但是没有线程，创建一个空的线程。（3）往线程池中创建新的线程失败，执行reject策略。
 2. addWorker：addWorker主要负责创建新的线程并执行任务，线程池创建新线程执行任务时，需要获取全局锁。
-3. runworker：线程启动之后，通过unlock方法释放锁，设置AQS的state为0，表示运行可中断； Worker执行firstTask或从workQueue中获取任务：(1)进行加锁操作，保证thread不被其他线程中断(除非线程池被中断) (2)检查线程池状态，倘若线程池处于中断状态，当前线程将中断。 (3)执行beforeExecute (4)执行任务的run方法 (5)执行afterExecute方法 (6)解锁操作。 
+3. runworker：线程启动之后，通过unlock方法释放锁，设置AQS的state为0，表示运行可中断； Worker执行firstTask或从workQueue中获取任务：(1)进行加锁操作，保证thread不被其他线程中断(除非线程池被中断) (2)检查线程池状态，倘若线程池处于中断状态，当前线程将中断。 (3)执行beforeExecute (4)执行任务的run方法 (5)执行afterExecute方法 (6)解锁操作。
 ### exectue方法中为什么double check线程池的状态
 在多线程环境下，线程池的状态时刻在变化，而ctl.get()是非原子操作，很有可能刚获取了线程池状态后线程池状态就改变了。判断是否将command加入workque是线程池之前的状态。倘若没有double check，万一线程池处于非running状态(在多线程环境下很有可能发生)，那么command永远不会执行。
 ### 几种常见的线程池
-- newFixedThreadPool
+- newFixedThreadPool：只会用一个线程来执行任务，保证任务的先进先出
 ```java
 public static ExecutorService newFixedThreadPool(int nThreads) {
     return new ThreadPoolExecutor(nThreads, nThreads,
@@ -148,7 +152,7 @@ public static ExecutorService newSingleThreadExecutor() {
 }
 ```
 初始化的线程池只有一个线程，该线程异常结束，会重新创建一个新的线程继续执行任务，唯一的线程可以保证所提交任务的顺序执行。由于使用无界队列，饱和策略失效。
-- newCachedThreadPool
+- newCachedThreadPool：可灵活的回收线程，超过60秒就会自动回收。
 ```java
 public static ExecutorService newCachedThreadPool() {
     return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
