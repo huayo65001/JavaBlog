@@ -1,5 +1,47 @@
 # java多线程
 <!--ts-->
+* [java多线程](#java多线程)
+   * [并发出现问题的根源：并发三要素](#并发出现问题的根源并发三要素)
+   * [JAVA是怎么解决并发问题的](#java是怎么解决并发问题的)
+   * [线程安全](#线程安全)
+      * [线程安全的实现方法](#线程安全的实现方法)
+   * [线程状态转换](#线程状态转换)
+   * [线程使用方式](#线程使用方式)
+   * [线程互斥同步](#线程互斥同步)
+      * [Synchronized和Reentranlock的对比](#synchronized和reentranlock的对比)
+   * [synchronized](#synchronized)
+      * [加锁和释放锁的原理：](#加锁和释放锁的原理)
+      * [锁升级过程](#锁升级过程)
+      * [锁优化](#锁优化)
+   * [volatile](#volatile)
+      * [可见性](#可见性)
+      * [MESI机制](#mesi机制)
+         * [有了MESI为什么还需要Volatile](#有了mesi为什么还需要volatile)
+      * [有序性](#有序性)
+   * [final](#final)
+      * [知识点](#知识点)
+      * [有序性](#有序性-1)
+   * [CAS，Unsafe和原子类](#casunsafe和原子类)
+   * [LockSupport](#locksupport)
+   * [AQS](#aqs)
+   * [ReentrantLock](#reentrantlock)
+   * [ReentrantReadWriteLock](#reentrantreadwritelock)
+   * [CopyOnWriteArrayList](#copyonwritearraylist)
+   * [ConcurrentHashMap](#concurrenthashmap)
+      * [ConcurrentHashMap怎么实现线程安全](#concurrenthashmap怎么实现线程安全)
+      * [1.7](#17)
+      * [1.8](#18)
+   * [BlockingQueue](#blockingqueue)
+   * [JUC线程池ThreadPoolExecutor](#juc线程池threadpoolexecutor)
+      * [核心方法](#核心方法)
+      * [exectue方法中为什么double check线程池的状态](#exectue方法中为什么double-check线程池的状态)
+      * [几种常见的线程池](#几种常见的线程池)
+      * [关闭线程池](#关闭线程池)
+   * [线程工具类，CountDownLatch，CyclicBarrier，Semaphore](#线程工具类countdownlatchcyclicbarriersemaphore)
+   * [ThreadLocal](#threadlocal)
+
+<!-- Added by: hanzhigang, at: 2021年 8月28日 星期六 09时48分55秒 CST -->
+
 <!--te-->
 ## 并发出现问题的根源：并发三要素
 1. 原子性：分时复用引起的，操作系统增加了进程、线程以分时复用CPU，进而均衡CPU与IO设备之间的速度差异。引出了原子性问题

@@ -1,5 +1,23 @@
 # java集合
 <!--ts-->
+* [java集合](#java集合)
+   * [ArrayList、Vector、LinkedList](#arraylistvectorlinkedlist)
+      * [ArrayList的扩容机制](#arraylist的扩容机制)
+      * [ArrayList和LinkedList的区别](#arraylist和linkedlist的区别)
+      * [ArrayList和Vector的区别，为什么要用ArrayList取代Vector？](#arraylist和vector的区别为什么要用arraylist取代vector)
+   * [HashMap、TreeMap、HashTable、LinkHashMap](#hashmaptreemaphashtablelinkhashmap)
+      * [HashMap底层实现](#hashmap底层实现)
+      * [HashMap的长度为什么是2的幂次方](#hashmap的长度为什么是2的幂次方)
+      * [负载因子为什么是0.75？](#负载因子为什么是075)
+      * [HashMap和HashTable的区别](#hashmap和hashtable的区别)
+      * [LinkHashMap](#linkhashmap)
+      * [TreeMap](#treemap)
+      * [ConcurrentHashMap 和 Hashtable 的区别](#concurrenthashmap-和-hashtable-的区别)
+      * [comparable 和 Comparator的区别](#comparable-和-comparator的区别)
+   * [TreeSet](#treeset)
+
+<!-- Added by: hanzhigang, at: 2021年 8月28日 星期六 09时51分09秒 CST -->
+
 <!--te-->
 ## ArrayList、Vector、LinkedList
 ### ArrayList的扩容机制

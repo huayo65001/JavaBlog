@@ -1,5 +1,28 @@
 # Netty
+<!--ts-->
+* [Netty](#netty)
+   * [Netty是什么？](#netty是什么)
+   * [为什么要用Netty？](#为什么要用netty)
+   * [Netty应用场景](#netty应用场景)
+   * [Netty核心组件有哪些？分别有什么作用？](#netty核心组件有哪些分别有什么作用)
+      * [Channel](#channel)
+      * [EventLoop](#eventloop)
+      * [ChannelFuture](#channelfuture)
+      * [ChannelHandler、ChannelPipeline](#channelhandlerchannelpipeline)
+   * [EventLoopGroup了解么？和EventLoop啥关系？](#eventloopgroup了解么和eventloop啥关系)
+   * [Bootstrap和ServerBootstrap了解么？](#bootstrap和serverbootstrap了解么)
+   * [NioEventLoopGroup默认的构造函数会起多少线程？](#nioeventloopgroup默认的构造函数会起多少线程)
+   * [Netty线程模型了解么？](#netty线程模型了解么)
+   * [Netty服务端和客户端的启动过程了解么？](#netty服务端和客户端的启动过程了解么)
+      * [服务端：](#服务端)
+      * [客户端：](#客户端)
+   * [什么是TCP粘包/拆包？有什么解决方法呢？](#什么是tcp粘包拆包有什么解决方法呢)
+   * [Netty长链接、心跳机制了解么？](#netty长链接心跳机制了解么)
+   * [Netty的零拷贝了解么？](#netty的零拷贝了解么)
 
+<!-- Added by: hanzhigang, at: 2021年 8月28日 星期六 09时52分27秒 CST -->
+
+<!--te-->
 ## Netty是什么？
 - Netty成功找到了一种在不妥协可维护性和性能的情况下实现易于开发，性能，稳定性和灵活性的方法。
 1. Netty是一个基于NIO的CS(客户端-服务端)框架，使用它可以快速简单的开发网络应用框架。
