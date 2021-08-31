@@ -1,20 +1,20 @@
 # java集合
 <!--ts-->
-* [java集合](#java集合)
-   * [ArrayList、Vector、LinkedList](#arraylistvectorlinkedlist)
-      * [ArrayList的扩容机制](#arraylist的扩容机制)
-      * [ArrayList和LinkedList的区别](#arraylist和linkedlist的区别)
-      * [ArrayList和Vector的区别，为什么要用ArrayList取代Vector？](#arraylist和vector的区别为什么要用arraylist取代vector)
-   * [HashMap、TreeMap、HashTable、LinkHashMap](#hashmaptreemaphashtablelinkhashmap)
-      * [HashMap底层实现](#hashmap底层实现)
-      * [HashMap的长度为什么是2的幂次方](#hashmap的长度为什么是2的幂次方)
-      * [负载因子为什么是0.75？](#负载因子为什么是075)
-      * [HashMap和HashTable的区别](#hashmap和hashtable的区别)
-      * [LinkHashMap](#linkhashmap)
-      * [TreeMap](#treemap)
-      * [ConcurrentHashMap 和 Hashtable 的区别](#concurrenthashmap-和-hashtable-的区别)
-      * [comparable 和 Comparator的区别](#comparable-和-comparator的区别)
-   * [TreeSet](#treeset)
+- [java集合](#java集合)
+  - [ArrayList、Vector、LinkedList](#arraylistvectorlinkedlist)
+    - [ArrayList的扩容机制](#arraylist的扩容机制)
+    - [ArrayList和LinkedList的区别](#arraylist和linkedlist的区别)
+    - [ArrayList和Vector的区别，为什么要用ArrayList取代Vector？](#arraylist和vector的区别为什么要用arraylist取代vector)
+  - [HashMap、TreeMap、HashTable、LinkHashMap](#hashmaptreemaphashtablelinkhashmap)
+    - [HashMap底层实现](#hashmap底层实现)
+    - [HashMap的长度为什么是2的幂次方](#hashmap的长度为什么是2的幂次方)
+    - [负载因子为什么是0.75？](#负载因子为什么是075)
+    - [HashMap和HashTable的区别](#hashmap和hashtable的区别)
+    - [LinkHashMap](#linkhashmap)
+    - [TreeMap](#treemap)
+    - [ConcurrentHashMap 和 Hashtable 的区别](#concurrenthashmap-和-hashtable-的区别)
+    - [comparable 和 Comparator的区别](#comparable-和-comparator的区别)
+  - [TreeSet](#treeset)
 
 <!-- Added by: hanzhigang, at: 2021年 8月28日 星期六 09时51分09秒 CST -->
 
@@ -46,7 +46,7 @@ JDK1.8 之前HashMap底层是数组和链表 结合在一起使用也就是链�
 ### 负载因子为什么是0.75？
 负载因子是0.75的时候，空间利用率比较高，而且避免了相当多的Hash冲突，使得底层的链表或者是红黑树的高度比较低，提升了空间效率。
 ### HashMap和HashTable的区别
-1. 线程是否安全： HashMap 是非线程安全的，HashTable 是线程安全的；HashTable 内部的方法基本都经过synchronized 修饰。（如果你要保证线程安全的话就使用 ConcurrentHashMap 吧！）；
+1. 线程是否安全： HashMap 是非线程安全的，HashTable 是线程安全的；HashTable 内部的方法基本都经过synchronized 修饰。
 2. 效率： 因为线程安全的问题，HashMap 要比 HashTable 效率高一点。
 3. 对Null key 和Null value的支持： HashMap 中，null 可以作为键，这样的键只有一个，可以有一个或多个键所对应的值为 null。但是在 HashTable 中 put 进的键值只要有一个 null，直接抛出 NullPointerException。hashmap在put空值时做了特殊处理。这是因为Hashtable使用的是安全失败机制（fail-safe），这种机制会使你此次读到的数据不一定是最新的数据。如果你使用null值，就会使得其无法判断对应的key是不存在还是为空，因为你无法再调用一次contain(key）来对key是否存在进行判断，ConcurrentHashMap同理。
 4. 初始容量大小和每次扩充容量大小的不同 ： ①创建时如果不指定容量初始值，**Hashtable 默认的初始大小为11，之后每次扩充，容量变为原来的2n+1。HashMap 默认的初始化大小为16。之后每次扩充，容量变为原来的2倍。②创建时如果给定了容量初始值，那么 Hashtable 会直接使用你给定的大小，而 HashMap 会将其扩充为2的幂次方大小（HashMap 中的tableSizeFor()方法保证）**。也就是说 HashMap 总是使用2的幂作为哈希表的大小。

@@ -17,6 +17,7 @@
 - [消息队列](#消息队列)
 - [ZooKeeper](#zookeeper)
 - [Netty](#netty)
+- [分布式](#分布式)
 - [Kafka](#kafka)
 - [软件开发过程](#软件开发过程)
 - [算法](#算法)
@@ -3510,6 +3511,310 @@ maxCommitedLog：Leader提议缓存队列中最大的zxid
 1. 使用Netty提供的CompositeByteBuf类，可以将多个ByteBuf合并为一个逻辑上的ByteBuf，避免了多个ByteBuf之间的拷贝。
 2. ByteBuf支持slice操作，可以将一个ByteBuf分割成多个共享同一个存储区域的ByteBuf，避免了内存的拷贝。
 3. 通过FileRegion包装的FileChannel.tranferTo实现文件传输，可以直接将文件缓冲区的数据发送到目标Channel，避免了传统通过循环write方式导致内存拷贝的问题。
+# 分布式
+<!--ts-->
+- [分布式](#分布式)
+  - [理论](#理论)
+    - [拜占庭将军问题](#拜占庭将军问题)
+    - [CAP](#cap)
+    - [BASE](#base)
+    - [分布式事务](#分布式事务)
+      - [概念](#概念)
+      - [2PC(二阶段提交)(同步阻塞协议)](#2pc二阶段提交同步阻塞协议)
+      - [3PC(三阶段提交)](#3pc三阶段提交)
+      - [TCC](#tcc)
+      - [本地消息表(实现的最终一致性，容忍了数据暂时不一致性的情况)](#本地消息表实现的最终一致性容忍了数据暂时不一致性的情况)
+      - [消息事务](#消息事务)
+    - [一致性Hash算法](#一致性hash算法)
+      - [一致性Hash算法引入](#一致性hash算法引入)
+      - [一致性Hash算法简介](#一致性hash算法简介)
+      - [一致性Hash算法](#一致性hash算法-1)
+    - [Paxos算法](#paxos算法)
+    - [Raft算法](#raft算法)
+    - [ZAB算法](#zab算法)
+    - [SnowFlake算法](#snowflake算法)
+  - [高并发](#高并发)
+    - [消息队列](#消息队列)
+    - [读写分离 & 分库分表](#读写分离--分库分表)
+    - [负载均衡算法](#负载均衡算法)
+      - [常见的负载均衡算法](#常见的负载均衡算法)
+        - [轮询法(Round Robin)](#轮询法round-robin)
+        - [加权轮询法(Weight Round Robin)](#加权轮询法weight-round-robin)
+        - [随机法(Random)](#随机法random)
+        - [加权随机法(Weight Random)](#加权随机法weight-random)
+        - [源地址哈希法(Hash)](#源地址哈希法hash)
+        - [最小连接数法(Least Connections)](#最小连接数法least-connections)
+      - [Nginx的5种负载均衡算法](#nginx的5种负载均衡算法)
+  - [高可用性](#高可用性)
+    - [熔断](#熔断)
+    - [降级](#降级)
+    - [限流](#限流)
+      - [固定窗口计数器](#固定窗口计数器)
+      - [滑动窗口计数器](#滑动窗口计数器)
+      - [漏桶](#漏桶)
+      - [令牌桶](#令牌桶)
+    - [排队](#排队)
+    - [集群](#集群)
+    - [超时和重试机制](#超时和重试机制)
+  - [分布式锁](#分布式锁)
+    - [分布式锁需要哪些特性](#分布式锁需要哪些特性)
+    - [常见的分布式锁实现](#常见的分布式锁实现)
+      - [基于MySQL数据库实现分布式锁](#基于mysql数据库实现分布式锁)
+      - [基于Redis实现的分布式锁](#基于redis实现的分布式锁)
+      - [基于Zookeeper实现的分布式锁](#基于zookeeper实现的分布式锁)
+      - [分布式锁的对比](#分布式锁的对比)
+
+<!-- Added by: hanzhigang, at: 2021年 8月17日 星期二 13时49分25秒 CST -->
+
+<!--te-->
+## 理论
+### 拜占庭将军问题
+
+### CAP
+- 一致性、可用性、分区容错性
+- 一致性：一个写操作返回成功，那么之后的读请求必须读到这个数据。如果返回失败，那么所有的读操作都不能读到这个数据，所有节点访问同一份最新的数据。
+- 可用性：对数据更新具备高可用性，请求能够及时处理，不会一直等待，除非出现节点失效。
+- 分区容错性：能容忍网络分区，在网络断开的情况下，被分割的节点仍能正常对外提供服务。
+- 两个副本之间网络断开，不能通信，这时候如果一个副本更新，导致两个副本之间数据不一致，丧失了A的性质。为了保证不一致，将另一个副本置为不可用，丧失了A的性质。两个副本之间通信恢复，既保证了C和P，但是丧失了P的性质。
+- 在进行分布式系统设计和开发时，我们不应该仅仅局限在 CAP 问题上，还要关注系统的扩展性、可用性等等。在系统发生“分区”的情况下，CAP 理论只能满足 CP 或者 AP。要注意的是，这里的前提是系统发生了“分区”。如果系统没有发生“分区”的话，节点间的网络连接通信正常的话，也就不存在 P 了。这个时候，我们就可以同时保证 C 和 A 了。总结：如果系统发生“分区”，我们要考虑选择 CP 还是 AP。如果系统没有发生“分区”的话，我们要思考如何保证 CA 。
+### BASE
+- 基本可用性(Basic Available)、软状态(Soft-state)、最终一致性(Eventually Consistent)
+- 核心思想：即时无法做到强一致性，但每个应用都可以根据自身特点，采用适当的方式来使系统达到最终一致性。
+1. 基本可用性
+分布式系统在出现不可预测的故障的时候，允许损失部分可用性。但是，这绝不等价于系统不可用。
+**允许损失部分可用性**
+	- 响应时间上的损失：正常情况下，处理用户请求需要0.5s返回结果，但是由于系统故障，处理用户请求的时间变为3s。
+	- 系统功能上的损失：正常情况下，用户可以使用系统的全部功能，但是由于系统访问量突然剧增，系统的部分非核心功能无法使用。
+2. 软状态
+系统中的数据存在中间状态，并认为该中间状态的存在不会影响系统的整体可用性，即允许系统在不用节点的数据副本之间进行数据同步的过程存在延时。
+3. 最终一致性
+系统中所有的数据副本，在经过一段时间的同步后，最终能够达到一个一致的状态。因此最终一致性的本质是需要系统保证最终数据能够达到一致，而不需要实时保证系统数据的强一致性。
+
+### 分布式事务
+#### 概念
+事务的参与者、支持事务的服务器、资源服务器以及事务管理器分别位于不同的分布式系统的不同的节点上。
+
+一次大的操作由多个小操作完成。这些小的操作分布在不同的服务器上，且属于不同的应用，分布式事务需要保证这些小的事务要么全部成功，要么全部失败。本质上说分布式事务就是为了保证不同数据库的数据一致性。
+
+
+#### 2PC(二阶段提交)(同步阻塞协议)
+- 是一种强一致性设计，引入了一个事务协调者的角色来协调管理各参与者的提交和回滚。二阶段是指准备和提交两个阶段。
+1. 准备阶段：协调者会给参与者发送准备命令，准备命令理解成除了提交事务其他事情都做完了。同步等待全部资源响应之后就进入第二阶段，提交阶段。
+2. 假如第二阶段的全部参与者都返回准备成功，那么协调者将向所有参与者发送提交命令，然后等待所有事务都提交成功之后，返回事务提交成功。
+3. 假如第一阶段有参与者返回失败，那么协调者向所有参与者发送回滚事务的请求，即分布式事务执行失败。
+4. 假如第二阶段有参与者返回失败，分两种情况，①回滚事务，不断重试，直到所有参与者回滚事务成功。②继续尝试提交事务，直到提交成功，最后实在不行人工参与处理。
+- 适用于数据库层面的分布式事务。二阶段提交是阻塞同步的，阻塞同步就会导致长久资源的锁定，总体而言效率低，并且存在单点故障，极端情况下存在数据不一致的风险。
+#### 3PC(三阶段提交)
+- 3PC的出现是为了解决2PC的一些问题，相比于2PC它在参与者中也引入了超时机制，并且新增了一个阶段使得参与者可以利用这个阶段统一各自的状态。
+- 三个阶段：准备阶段，预提交阶段，提交阶段。准备阶段也只是询问参与者自身情况。
+- 三阶段提交的阶段变更有什么影响？：①首先准备阶段变更成不会直接执行事务，而是先去询问参与者有没有条件去接这个事务。因此不会一来就干活直接锁资源，使得在某个资源不可用的情况下所有参与者都阻塞着。②预提交阶段的引入起到了一个统一状态的作用。它像一个栅栏，在预提交阶段之前所有参与者都未回应，在预提交阶段表明所有参与者都已经回应过了。但是多一个阶段的引入多一个交互，会造成性能上的损失，而且资源在绝大多数情况下都是可用的。
+- 参与者超时会带来什么影响？：引入了超时机制，参与者就不会傻等了。如果等待提交命令超时了，那么参与者就会提交事务，绝大多数情况下是提交事务。如果等待预提交命令超时了，该干啥干啥，反正啥也没做。也可能带着数据不一致的问题。当等待提交命令超时，应该提交事务，有的可能执行回滚，导致数据不一致问题。
+- 3PC解决的是提交阶段2PC协调者和某些参与者都挂了，选举之后的新的协调者不知道当前应该是提交还是回滚的问题。
+- 通过预提交阶段可以减少故障恢复时的复杂性，但不能保证数据一致，除非挂了的那个参与者恢复。
+#### TCC
+- 2PC、3PC都是基于数据库层面的，TCC是基于业务层面的分布式事务。
+- TCC包括Try、Confirm、Cancel三个步骤。Try指的是预留，即资源的预留和锁定。Confirm指的是确认操作，这一步其实就是真正的执行了。Cancel指的是撤销的操作，可以理解为把预留阶段的动作撤销了。存在一个事务管理者的身份，用来执行Confirm或Cancel操作。比如一个事务要执行A、B、C三个操作，那么先对三个操作执行预留动作。如果都预留成功了就执行确认操作，否则就全都执行撤销操作。
+#### 本地消息表(实现的最终一致性，容忍了数据暂时不一致性的情况)
+- 本地消息表其实就是利用了各系统本地事务来实现分布式事务。
+- 本地消息表就是一张存放本地消息的表，一般都是放在数据库中，然后在执行业务的时候**将业务的执行和将消息放入消息表中的操作放在同一个事务中**，这样就能保证消息放入本地表中的业务肯定是执行成功的。
+- 然后再去调用下一个操作，如果下一个操作调用成功了，消息表的消息状态可以直接改成已成功。如果调用失败了，**后台任务定时去读取本地消息表**，筛选出还未成功的消息再调用对应的服务，服务更新成功了再变更消息的状态。
+#### 消息事务
+- 需要消息队列提供相应的功能才能实现。
+- 在订单系统中，存在创建订单和删除购物车两个功能，即存在订单系统和购物车系统。当用户下单时，删除购物车中的某一项是可以异步来完成的，允许非实时，在这样的情况下，可以通过消息队列，购物车系统订阅响应的消息来进行消费。但是也会存在着数据不一致等问题。必须订单创建失败但是购物车却被删除了。在这种情况下需要使用到分布式事务来解决。
+- 当用户提交订单时，订单系统开启事务，向消息系统(消息队列)发送一个半消息，即事务提交之前该消息对消费者是透明的。之后订单系统再进行订单的增删改查，如果操作成功，向消息系统进行消息提交操作，否则进行回滚操作。如果进行了消息提交的操作，购物车系统就能够消费到这条消息的后续流程。
+### 一致性Hash算法
+#### 一致性Hash算法引入
+在分布式集群中，对机器的添加删除，或者机器故障后自动脱离集群这些操作是分布式集群管理最基本的功能。如果采用常用的hash(object)%N算法，那么在有机器添加或者删除后，很多原有的数据就无法找到了，这样严重违反了单调性原则。
+#### 一致性Hash算法简介
+一致性Hash算法提出了在动态变化的Cache环境中，判定哈希算法好坏的四个定义：
+- `平衡性`：哈希的结果能够尽可能分布到所有的缓冲中去，这样可以使得所有的缓冲空间得到利用。
+- `单调性`：如果已经有一些内容通过哈希分派到了相应的缓冲中，又有新的缓冲加入系统，哈希的结果应能够保证原有已分配的内容能够被映射到原有的或者新的缓冲中去，而不会被映射到旧的缓冲集合中的其他缓冲区。
+- `分散性`：在分布式环境中，终端有可能看不到所有的缓冲，而是只能看到其中的一部分。当终端希望通过哈希过程将内容映射到缓冲上时，由于不同终端所见的缓冲范围有可能不同，从而导致哈希的结果不一致，最终的结果是相同的内容被不同的终端映射到不同的缓冲区中。这种情况应当避免，降低了系统存储的效率。分散性就是上述情况发生的严重程度。
+- `负载`：从另一个角度看待分散性问题。既然不同的终端可能将相同的内容映射到不同的缓冲区中，那么对于一个特定的缓冲区而言，也可能被不同的用户映射为不同的内容。与分散性一样，这种情况也是应当避免的，因此好的哈希算法应能够尽量降低缓冲的负荷。
+
+#### 一致性Hash算法
+### Paxos算法
+- 一种基于消息传递且具有高度容错性的一致性算法
+- 解决的问题：如何快速正确的在某个系统中对某个数值达成一致，并且保证不论发生任何异常，都不会破坏整个系统的一性。
+### Raft算法
+
+### ZAB算法
+
+### SnowFlake算法
+SnowFlake，雪花算法是由Twitter开源的分布式ID生成算法，以划分命名空间的方式将64-bit位分割成多个部分，每个部分代表不同的含义。而Java中64bit的整数是long类型，所有在Java中SnowFlake算法开源的ID就是long来存储的。
+- **第1位**占用1bit，其值始终是0，可看做是符号位不使用。
+- **第2位开始的41位**是时间戳，41-bit位可表示2^41个数，每个数代表毫秒。
+- **中间的10-bit位**可表示机器数，即2^10=1024台机器，但是一般情况下我们不会部署这么多台机器。如果我们对IDC(互联网数据中心)有需求，还可以将10-bit分5-bit给IDC，分5-bit给工作机器。这样就可以表示32个IDC，每个IDC下可以有32台机器。
+- **最后12-bit**是自增序列，可表示2^12=4096个数。
+
+这样的划分之后相当于**在一毫秒一个数据中心的一台机器上可产生4096个有序的不重复的ID**。但是我们 IDC 和机器数肯定不止一个，所以毫秒内能生成的有序ID数是翻倍的。
+
+## 高并发
+### 消息队列
+削峰和解耦
+### 读写分离 & 分库分表
+读写分离主要是为了将数据库的读和写操作分布到不同的数据库节点上。主服务器负责写，从服务器负责读。另外，一主一从或者一主多从都可以。
+
+读写分离可以大幅提高读性能，小幅提高写性能。因此读写分离更适合单机并发读请求比较多的情况。
+
+分库分表是为了解决由于库、表数据量过大，而导致数据库性能持续下降的问题。
+### 负载均衡算法
+负载均衡系统通常用于将任务比如用户请求处理分配到多个服务器处理以提高网站、应用或者数据库的性能和可靠性。
+常见的负载均衡系统包括3种：
+1. DNS负载均衡：一般通过地理级别的均衡。
+2. 硬件负载均衡：通过单独的硬件设备比如F5来实现负载均衡功能。
+3. 软件负载均衡：通过负载均衡软件比如Nginx来实现负载均衡功能。
+#### 常见的负载均衡算法
+常见的负载均衡算法包括：
+- 轮询法(Round Robin)
+- 加权轮询法(Weight Round Robin)
+- 平滑加权轮询法(Smooth Weight Round Robin)
+- 随机法(Random)
+- 加权随机法(Weight Random)
+- 源地址哈希法(Hash)
+- 最小连接数法(Least Connections)
+
+##### 轮询法(Round Robin)
+将请求按顺序轮流地分配给后端服务器上，它均衡地对待每一台服务器，而不关心服务器实际的连接数和当前的系统负载。
+##### 加权轮询法(Weight Round Robin)
+不同的后端服务器可能机器的配置和当前系统的负载并不相同，因此他们的抗压能力也不相同。给配置高、负载低的机器配置更高的权重，让其处理更多的请求。而配置低、负载高的机器，给其分配较低的权重，降低其系统负载，加权轮询能很多的处理这一问题，并将请求顺序且按照权重分配到后端。
+##### 随机法(Random)
+通过系统的随机算法，根据后端服务器的列表大小来随机选取其中的一台服务器进行访问。由概率统计理论可以得知，随着客户端调用服务端的次数增多，其实际效果越来越接近于平均分配调用量到后端的每一台服务器，也就是轮询的结果。
+##### 加权随机法(Weight Random)
+与加权轮询法一样，加权随机法也根据后端机器的配置，系统的负载分配不同的权重。不同的是，它是按照权重随机请求后端服务器，而非顺序。
+##### 源地址哈希法(Hash)
+源地址哈希的思想是根据获取客户端的IP地址，通过哈希函数计算得到的一个数值，用该数值对服务器列表的大小进行取模运算，得到的结果便是客服端要访问服务器的序号。采用源地址哈希法进行负载均衡，同一IP地址的客户端，当后端服务器列表不变时，它每次都会映射到同一台后端服务器进行访问。
+##### 最小连接数法(Least Connections)
+最小连接数算法比较灵活和智能，由于后端服务器的配置不尽相同，对于请求的处理有快有慢，它是根据后端服务器当前的连接情况，动态地选取其中当前积压连接数最少的一台服务器来处理当前的请求，尽可能地提高后端服务的利用效率，将请求合理地分流到每一台服务器。
+#### Nginx的5种负载均衡算法
+1. 轮询法
+2. 加权轮询法
+3. 源地址哈希法
+4. fair(第三方)：按后端服务器的响应时间来分配请求，响应时间短的优先分配
+5. url_hash(第三方)：按访问url的哈希结果来分配请求，使每个url定向到同一个后端服务器，后端服务器为缓存时比较有效。
+## 高可用性
+
+### 熔断
+降级是应对自身系统的故障，熔断是用来应对当前依赖的外部系统或者第三方系统故障。
+### 降级
+从系统功能优先级的角度来考虑如何应对系统故障。
+服务降级是指当服务器压力剧增的情况下，根据当前业务情况及流量对一些服务和页面有策略的降级，以此释放服务器资源来保证核心业务的正常运行。
+### 限流
+从用户访问压力的角度来考虑如何应对系统故障。
+限流为了对服务端的接口接受请求的频率进行限制，防止服务挂掉。比如某一接口的请求限制为 100 个每秒, 对超过限制的请求放弃处理或者放到队列中等待处理。限流可以有效应对突发请求过多。
+#### 固定窗口计数器
+- 固定窗口计时器的算法概念
+1. 将时间划分为多个窗口
+2. 在每个窗口内每有一个请求就将计数器加一
+3. 如果计数器超过了限定数量，就将后来的请求丢弃。当时间到达下一个时间窗口时就将计时器重置。
+- 这个算法有时候会让通过请求量允许为限制的两倍。例如限制一秒内允许通过5个请求，在最后半秒内到达了5个请求，下一个时间窗口前半秒又到达了5个请求，这样一秒内到达了10个请求。
+#### 滑动窗口计数器
+- 滑动窗口计数器算法
+1. 将时间划分为多个区间。
+2. 在每个区间内每有一次请求就将计数器加一。维持一个时间窗口，占据多个区间。
+3. 每经过一个区间的时间，就抛弃老的区间，加入最新的区间。
+4. 如果当前窗口内区间的请求计数总和超出了限制数量，则本窗口内的所有请求都将被丢弃。
+- 滑动窗口计数器通过将窗口再细分，并且按照时间滑动。这种算法避免了固定窗口计数器带来的双倍突发请求，但是滑动窗口的精度越高，算法所需的空间容量就越大。
+#### 漏桶
+- 漏桶的算法概念
+1. 每个请求都当做”水滴“放入”漏桶“中。
+2. ”漏桶“以一定的速率向外滴请求，如果”漏桶“空了则停止”漏水“。
+3. 如果”漏桶“满了多余的”水滴“会被直接丢弃。
+- 漏桶算法多用队列实现，服务的请求会存到队列中，服务的提供方则按照固定的速率从队列中取出请求并执行，过多的请求则放到队列中或直接拒绝。
+- 漏桶算法的缺陷也很明显，当短时间内有大量突发请求时，即时此时服务器没有任何负载，每个请求也都得在队列中请求一段时间才能得到执行。
+#### 令牌桶
+- 令牌桶的算法概念
+1. 令牌以固定速率生成
+2. 生产的令牌放入令牌桶中存放，如果令牌桶满了则多余的令牌会直接丢弃。当请求到达时，会尝试从令牌桶中去令牌，取到令牌的请求可以执行。
+3. 如果令牌桶空了，那么尝试去令牌的请求会被直接丢弃。
+- 令牌桶算法既能将所有请求平均分布到所有时间内，又能接受服务器能够承受范围内的突发请求。
+### 排队
+另类的一种限流，类比于现实世界的排队。玩过英雄联盟的小伙伴应该有体会，每次一有活动，就要经历一波排队才能进入游戏。
+### 集群
+相同的服务备份多份，避免单点故障。
+### 超时和重试机制
+一旦服务请求超过一段时间没有响应就结束此次请求并抛出异常。如果不进行超时设置可能会导致请求响应速度慢，甚至导致请求积压进而让系统无法再处理请求。
+
+另外重试次数一般设为3次，再多次重试没有好处，反而会加重服务器压力。
+## 分布式锁
+### 分布式锁需要哪些特性
+1. 互斥性
+2. 可重入性
+3. 锁超时：一旦锁超时即释放拥有的锁资源
+4. 非阻塞：支持获取锁的时候直接返回结果值，而不是在没有获取到锁的时候阻塞线程的执行。
+5. 公平锁和非公平锁
+
+### 常见的分布式锁实现
+#### 基于MySQL数据库实现分布式锁
+1. 悲观锁：利用select ... where ... for update排它锁。where后面的索引会锁行或者锁表，这样其他操作就会被阻塞。有些情况下，表不大的情况下，不会走索引。
+2. 乐观锁：基于CAS的思想，是不具有互斥性的，不会产生锁等待而消耗资源，操作过程认为不存在并发冲突，只有update version失败后才会察觉到。抢购、秒杀就是使用了这种方式来防止超卖。
+通过增加递增的版本号来实现乐观锁。
+进程A
+```sql
+select version,account from personal_blank where id = "xxx";
+
+# newAccount = 100 + 100;
+
+update personal_blank set account=200,version = oldVersion + 1 where id = "xxx" and version = oldVersion;
+
+# 更新失败了，version != oldVersion
+```
+进程B
+```sql
+select version,account from personal_blank where id = "xxx";
+
+# newAccount = 100 - 100;
+
+update personal_blank set account=200,version = oldVersion + 1 where id = "xxx" and version = oldVersion;
+
+# 更新成功了
+```
+#### 基于Redis实现的分布式锁
+1. 使用命令介绍
+(1) SETNX key value：当前仅当key不存在的时候，set一个key为value的字符串，如果当前key存在，什么都不做，返回0。
+
+(2) expire key timeout：为key设置一个过期时间，单位为second，超过这个时间自动释放key，避免死锁。
+
+(3) delete：删除key。
+2. 实现思想
+(1) 获取锁的时间通过SETNX进行加锁，并expire设置一个过期时间，超过这个时间自动释放key。key的value是一个随机生成的UUID，在释放锁的时候进行判断。
+
+(2) 获取锁的时候还设置一个超时时间，超过这个时间自动释放这个key。
+
+(3) 释放锁的时候通过UUID进行判断是不是持有该锁，如果持有该锁，使用delete释放该锁。
+
+#### 基于Zookeeper实现的分布式锁
+1. 实现步骤
+(1) 创建一个目录mylock
+
+(2) 线程A想要获取锁，就在mylock目录下创建一个临时顺序节点。
+
+(3) 获取mylock目录下所有的子节点，然后获取比自己小的兄弟节点，如果不存在，说明当前线程顺序号最小，获取锁。
+
+(4) 线程B想要获取锁，在mylock目录下创建一个临时顺序节点，并获取所有比自己的小的兄弟节点，如果存在，监听比自己次小的节点。
+
+(5) 线程A处理完成删除自己的节点，线程B监听到变更事件，判断自己是不是最小的节点，如果是则获取锁。
+
+#### 分布式锁的对比
+**基于数据库的分布式锁**
+缺点：
+1. db操作性较差，并且有锁表的风险。
+2. 非阻塞失败后，需要轮询，占用cpu资源。
+3. 长时间不commit或者长时间轮询，可能会占用较多的资源。
+
+**基于Redis的分布式锁**
+缺点：
+1. 锁删除失败，过期时间不好控制
+2. 非阻塞，操作失败后，需要轮询，占用CPU资源。
+
+**基于Zookeeper的分布式锁**
+缺点：
+1. 性能不如Redis，主要写操作要在leader上执行，然后同步到其他的follower上。
+
+**性能**
+缓存 > Zookeeper >= 数据库
+**可靠性**
+Zookeeper > 缓存 > 数据库
 
 # Kafka
 
@@ -3722,7 +4027,12 @@ UML、伪代码
 		- [LFU hash版本](#lfu-hash版本)
 	- [前缀树](#前缀树)
 	- [并查集](#并查集)
-
+	- [设计模式](#设计模式)
+		- [单例模式](#单例模式)
+	- [多线程相关算法](#多线程相关算法)
+		- [生产者消费者问题](#生产者消费者问题)
+		- [读者写者问题](#读者写者问题)
+		- [哲学家进餐问题](#哲学家进餐问题)
 <!-- Added by: hanzhigang, at: 2021年 8月28日 星期六 09时49分29秒 CST -->
 
 <!--te-->
@@ -4272,5 +4582,341 @@ public class QuickUnion {
 	public boolean connected(int x, int y) {
 		return find(x) == find(y);
 	}
+}
+```
+## 设计模式
+### 单例模式
+```java
+public class Singleton {
+    private Singleton(){}
+    private static volatile Singleton singleton = null;
+    private static Singleton getInstance(){
+        if(singleton == null){
+            synchronized (Singleton.class){
+                if(singleton == null){
+                    singleton = new Singleton();
+                }
+            }
+        }
+        return singleton;
+    }
+}
+```
+## 多线程相关算法
+### 生产者消费者问题
+```java
+class Depot {
+    private int size;
+    private int capacity;
+    private Lock lock;
+    private Condition fullCondition;
+    private Condition emptyCondition;
+    public Depot(int capacity) {
+        this.capacity = capacity;
+        lock = new ReentrantLock();
+        fullCondition = lock.newCondition();
+        emptyCondition = lock.newCondition();
+    }
+    public void producer(int no) {
+        lock.lock();
+        int left = no;
+        try {
+            while (left > 0) {
+//              如果当前产品数量达到最大容量，将当前线程加入等待队列
+                while (size >= capacity) {
+                    System.out.println(Thread.currentThread() + " : before await");
+//                  挂起线程，释放锁权限
+                    fullCondition.await();
+                    System.out.println(Thread.currentThread() + " : after await");
+                }
+//              增量等于正常加入的大小或者剩余容量的大小
+                int inc = (capacity - size) > left ? left : (capacity - size);
+//              用来判断当前是否已经完成生产，若left大于inc，则说明还有部分产品没有生产，等待当前队列唤醒后，继续生产。
+//              否则不再生产，退出while循环。
+                left -= inc;
+                size += inc;
+                System.out.println("producer : " + inc + ", size= " + size);
+//              唤醒消耗产品队列
+                emptyCondition.signal();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+//      生产完成，解锁
+        lock.unlock();
+    }
+
+    //  消费者
+    public void consumer(int no) {
+//      上锁，该线程不能被其他线程打断
+        lock.lock();
+        int left = no;
+        try {
+//          要消耗的数量大于0时，继续消耗产品
+            while (left > 0) {
+//              当现有产品清零时，将消费线程阻塞，emptyCondition进入等待队列
+                while (size <= 0) {
+                    System.out.println(Thread.currentThread() + " : before await");
+//                  挂起线程，释放锁权限
+                    emptyCondition.await();
+                    System.out.println(Thread.currentThread() + " : after await");
+                }
+//              消耗产品数量
+                int dec = (size - left) > 0 ? left : size;
+                left -= dec;
+                size -= dec;
+                System.out.println("consumer : " + dec + ", size= " + size);
+                fullCondition.signal();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+//      消费完成，解锁
+        lock.unlock();
+    }
+}
+class ProducerCondition {
+    private Depot depot;
+
+    public ProducerCondition(Depot depot) {
+        this.depot = depot;
+    }
+
+    public void produce(int no) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                depot.producer(no);
+            }
+        }, no + " producer thread").start();
+    }
+}
+class ConsumerCondition {
+    private Depot depot;
+
+    public ConsumerCondition(Depot depot) {
+        this.depot = depot;
+    }
+    public void consume(int no) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                depot.consumer(no);
+            }
+        }, no + " consumer thread").start();
+    }
+}
+public class ProducerAndConsumerReentrantLockExample {
+    public static void main(String[] args) {
+//      初始化为500的容量
+        Depot depot = new Depot(500);
+        new ProducerCondition(depot).produce(500);
+        new ProducerCondition(depot).produce(200);
+        new ConsumerCondition(depot).consume(200);
+        new ConsumerCondition(depot).consume(500);
+    }
+}
+```
+### 读者写者问题
+```java
+public class Main {
+    private final ReentrantLock lock ;   //定义锁
+    private static int readCount = 0;    //读者的数量
+    private Semaphore writeSemaphore ;   //写信号量
+    public Main() {
+        lock = new ReentrantLock();
+        writeSemaphore = new Semaphore(1);
+    }
+    public static void main(String[] args) {
+        Main main = new Main();
+        Executor executors = Executors.newFixedThreadPool(4);
+        executors.execute(main.new Reader());
+        executors.execute(main.new Reader());
+        executors.execute(main.new Writer());
+        executors.execute(main.new Reader());
+ 
+    }
+    class Reader implements Runnable {
+ 
+        @Override
+        public void run() {
+            before();             //读操作之前的操作
+            read();               //读操作
+            after();             //读操作之后的操作
+        }
+        public void before() {    //读操作之前的操作
+            final ReentrantLock l = lock;
+            l.lock();
+            try {
+                if(readCount == 0) {   //当有读者时，写者不能进入
+                    writeSemaphore.acquire(1);
+                }
+                readCount += 1;
+                System.out.println("有1位读者进入");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                l.unlock();
+            }
+        }
+ 
+        public void read() {         //读操作
+            System.out.println("当前有 " + readCount + " 位读者");
+        }
+ 
+        public void after() {        //读操作之后的操作
+            final ReentrantLock l = lock;
+            l.lock();
+            try {
+                readCount -= 1;
+                System.out.println("有1位读者离开" );
+                if(readCount == 0)     //当读者为0时，写者才可以进入  
+                    writeSemaphore.release(1);
+ 
+            } finally {
+                l.unlock();
+            }
+        }
+ 
+    }
+    class Writer implements Runnable {
+ 
+        @Override
+        public void run() {
+            final ReentrantLock l = lock;
+            l.lock();
+            try {
+                try {
+                    writeSemaphore.acquire(1);     //同时只有一个写者可以进入
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("写者正在写");
+                writeSemaphore.release(1);
+            }  finally {
+                l.unlock();
+            }
+        }
+    }
+}
+```
+### 哲学家进餐问题
+```java
+class DiningPhilosophers {
+//  叉子锁
+    ReentrantLock[] reentrantLock = new ReentrantLock[5];
+//  一个一个串行吃
+    ReentrantLock reentrantLock4 = new ReentrantLock();
+//  限制最多4个人拿起叉子
+    Semaphore semaphore = new Semaphore(4);
+    public DiningPhilosophers() {
+        for(int i = 0; i<reentrantLock.length;i++){
+            reentrantLock[i] = new ReentrantLock();
+        }
+    }
+    /**
+     * 思路1，打破循环等待条件，哲学家先拿编号小的叉子,这种思路可能产生死锁
+     * @throws InterruptedException
+     */
+    public void wantsToEat(int philosopher,
+                           Runnable pickLeftFork,
+                           Runnable pickRightFork,
+                           Runnable eat,
+                           Runnable putLeftFork,
+                           Runnable putRightFork) throws InterruptedException {
+
+        int forks1 = philosopher;
+        int forks2 = (philosopher+1)%5;
+        reentrantLock[Math.min(forks1,forks2)].lock();
+        reentrantLock[Math.max(forks1,forks2)].lock();
+        pickLeftFork.run();
+        pickRightFork.run();
+        eat.run();
+        putLeftFork.run();
+        putRightFork.run();
+        reentrantLock[Math.min(forks1,forks2)].unlock();
+        reentrantLock[Math.max(forks1,forks2)].unlock();
+    }
+    /**
+     * 思路2，奇数哲学家先拿起左边的叉子，再拿起右边的叉子，偶数哲学家先拿起右边的叉子，再拿起左边的叉子
+     */
+    public void wantsToEat1(int philosopher,
+                           Runnable pickLeftFork,
+                           Runnable pickRightFork,
+                           Runnable eat,
+                           Runnable putLeftFork,
+                           Runnable putRightFork) throws InterruptedException {
+        int left = philosopher;
+        int right = (philosopher+1)%5;
+        if(philosopher % 2 == 0){
+            reentrantLock[right].lock();
+            reentrantLock[left].lock();
+        }else{
+            reentrantLock[left].lock();
+            reentrantLock[right].lock();
+        }
+        pickLeftFork.run();
+        pickRightFork.run();
+        eat.run();
+        putLeftFork.run();
+        putRightFork.run();
+        if(philosopher % 2 == 0){
+            reentrantLock[right].unlock();
+            reentrantLock[left].unlock();
+        }else{
+            reentrantLock[left].unlock();
+            reentrantLock[right].unlock();
+        }
+    }
+    /**
+     * 思路2，保证最多只有4个哲学家同时持有叉子，这样保证最少1个哲学家能够吃到面条
+     */
+    public void wantsToEat2(int philosopher,
+                            Runnable pickLeftFork,
+                            Runnable pickRightFork,
+                            Runnable eat,
+                            Runnable putLeftFork,
+                            Runnable putRightFork) throws InterruptedException {
+
+        int left = philosopher;
+        int right = (philosopher+1)%5;
+//      就餐人数加一
+        semaphore.acquire();
+//      拿起叉子
+        reentrantLock[left].lock();
+        reentrantLock[right].lock();
+        pickLeftFork.run();
+        pickRightFork.run();
+        eat.run();
+        putLeftFork.run();
+        putRightFork.run();
+//      放下叉子
+        reentrantLock[left].unlock();
+        reentrantLock[right].unlock();
+//      就餐人数减一
+        semaphore.release();
+    }
+    /**
+     * 思路4，一个一个串行吃
+     */
+    public void wantsToEat3(int philosopher,
+                            Runnable pickLeftFork,
+                            Runnable pickRightFork,
+                            Runnable eat,
+                            Runnable putLeftFork,
+                            Runnable putRightFork) throws InterruptedException {
+        int left = philosopher;
+        int right = (philosopher+1)%5;
+//      拿起叉子
+        reentrantLock4.lock();
+        pickLeftFork.run();
+        pickRightFork.run();
+        eat.run();
+        putLeftFork.run();
+        putRightFork.run();
+//      放下叉子
+        reentrantLock4.unlock();
+
+    }
 }
 ```
