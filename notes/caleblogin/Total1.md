@@ -1731,6 +1731,7 @@ TreeSet对TreeMap做了一层包装，也就是说TreeSet里面有一个TreeMap(
       * [有序性](#有序性-1)
    * [CAS，Unsafe和原子类](#casunsafe和原子类)
    * [LockSupport](#locksupport)
+   * [几种对比](#几种对比)
    * [AQS](#aqs)
    * [ReentrantLock](#reentrantlock)
    * [ReentrantReadWriteLock](#reentrantreadwritelock)
@@ -1829,6 +1830,7 @@ TreeSet对TreeMap做了一层包装，也就是说TreeSet里面有一个TreeMap(
 4. 原子类：AtomicInteger,AtomicBoolean,AtomicLong,AtomicIntegerArray,AtomicLongArray,AtomicReference, AtomicReference,AtomicStampedReference,AtomicMarkableReference,AtomicIntegerFieldUpdater,AtomicLongFieldUpdater,AtomicStampedFieldUpdater,AtomicReferenceFieldUpdater。
 ## LockSupport
 1. LockSupport用来创建锁和其他同步类的基本线程阻塞原语。简而言之，当调用LockSupport.park时，表示当前线程将会等待，直至获得许可，当调用LockSupport.unpark时，必须把等待获得许可的线程作为参数进行传递，好让此线程继续运行。
+## 几种对比
 2. Thread.sleep()和Object.wait()的区别：①释不释放锁资源。②必须传入时间，另一个可不传。③sleep唤醒后继续执行，对于wait不传时间的必须通过notify或notifyAll来唤醒，带时间的立刻获取锁或没有立刻获取锁，进入同步队列。
 3. Thread.sleep()和Condition.await()的区别：Object.wait()和Condition.await()的原理是基本一致的，不同的是Condition.await()底层是调用LockSupport.park()来实现阻塞当前线程的。 实际上，它在阻塞当前线程之前还干了两件事，一是把当前线程添加到条件队列中，二是“完全”释放锁，也就是让state状态变量变为0，然后才是调用LockSupport.park()阻塞当前线程。
 4. Thread.sleep()和LockSupport.park()的区别：①都是阻塞当前线程的执行，且不会释放当前线程所占用的锁资源。②Thread.sleep()无法从外部唤醒，只能自己醒过来，park可被unpark唤醒。③Thread.sleep()需要捕获异常，park不需要捕获异常。④Thread.sleep()是一个native方法，park调用底层的unsafe的native方法。
@@ -1838,7 +1840,12 @@ TreeSet对TreeMap做了一层包装，也就是说TreeSet里面有一个TreeMap(
 1. AQS的思想：如果被请求的共享资源空闲，则将当前请求资源的线程设置为有效的工作线程，并且将共享资源设定为锁定状态。如果被请求的共享资源被占用，那么就需要一套线程阻塞等待以及被唤醒时所分配的机制。这个机制AQS是用CLH队列锁实现的，即将暂时获取不到锁的线程加入到队列中。
 2. AQS使用一个int成员变量来表示同步状态，通过内置的FIFO队列来完成获取资源线程的排队工作。AQS使用CAS对该同步状态进行原子操作实现对其值的修改。
 3. AQS的模板方法`isHeldExclusively()//该线程是否正在独占资源。只有用到condition才需要去实现它。tryAcquire(int)//独占方式。尝试获取资源，成功则返回true，失败则返回false。tryRelease(int)//独占方式。尝试释放资源，成功则返回true，失败则返回false。tryAcquireShared(int)//共享方式。尝试获取资源。负数表示失败；0表示成功，但没有剩余可用资源；正数表示成功，且有剩余资源。tryReleaseShared(int)//共享方式。尝试释放资源，成功则返回true，失败则返回false。`
-4. 内部类Node，ConditionObject
+4. Node的waitStatus：表示节点等待在队列中的状态。`CANCELLED`：表示线程取消了等待。如果取得锁的过程中发生了一些异常，则可能出现取消的情况，比如等待过程中出现了中断异常或者出现了timeout,`SIGNAL`：表示后继节点需要被唤醒,`CONDITION`：线程等待在条件变量队列中,`PROPAGATE`：在共享模式下，无条件传播releaseShared状态,`0`：默认状态。
+5. 加锁释放锁过程：
+   1. **加锁** ①首先尝试获取锁，`tryAcquire()`，如果抢到锁，将state设置1，独占线程设置为自己。如果没有抢到锁，则将当前线程包装成Node类型，放入同步队列中。②首先将节点快速加入队尾，如果加入不成功，通过调用`enq()`方法进行入队。入队过程中，如果同步队列中是空的，则首先创建一个空节点，接着将当前节点的前驱指向空节点，并让`tail`指向新创建的节点。③接着调用`acquireQueued()`方法，如果当前节点的前驱节点是`head`节点，并且尝试获取锁成功，则设置当前节点为头结点，gc前驱节点。如果当前节点的前驱节点不是`head`节点，则判断当前节点是否需要挂起，如果需要则将当前线程挂起。直到有其他线程唤醒当前线程，for循环进行再次进行判断。
+   2. **解锁**当线程释放资源时，调用`tryRelease()`方法，将CAS将state置为初始值，并将独占线程设置为null。然后调用`unparkSuccessor()`方法，唤醒后继线程，从后向前找，找到位于最前的节点的`waitStatus`值小于等于0的，然后将该节点的线程唤醒。被唤醒的节点继续执行`acquireQueued()`方法中的逻辑。
+6. 非公平锁：当某一个节点被唤醒时，恰好有一个节点还没入队，抢到了锁，这时候被唤醒的锁再次被挂起。
+7. 公平锁：在`tryAcquire()`的时候，会调用`hasQueuedPredecessors()`来判断队列中是否有等待时间更长的节点，如果没有的话才将独占线程设置为自己，如果有的话将自己加入等待队列尾部。
 ## ReentrantLock
 1. ReentrantLock类内部总共存在Sync、NonfairSync、FairSync三个类，NonfairSync与FairSync类继承自Sync类，Sync类继承自AbstractQueuedSynchronizer抽象类。
 2. AQS怎么实现的非公平锁，怎么实现的公平锁
@@ -2434,7 +2441,7 @@ public interface TransactionDefinition {
 
 ## MyBatis
 ## #{} 和 ${} 的区别
-${} 相当于使用字符串拼接，存在SQL注入风险。${}的变量替换在DBMS外，变量替换后，{}对应的变量不会加上单引号。
+\${} 相当于使用字符串拼接，存在SQL注入风险。${}的变量替换在DBMS外，变量替换后，{}对应的变量不会加上单引号。
 \#{} 相当于使用占位符，可以防止SQL注入，动态参数。#{}的变量替换在DBMS中，变量替换后，#{}对应的变量自动加上单引号。
 
 ## 一级缓存是什么
@@ -3841,6 +3848,7 @@ Zookeeper > 缓存 > 数据库
   - [Kafka的特点](#kafka的特点)
   - [Kafka和其他消息队列的区别](#kafka和其他消息队列的区别)
   - [Kafka中Zookeeper的作用](#kafka中zookeeper的作用)
+    - [为什么Kafka的offset放到了Kafka的名为__consumer_offsets 的Topic中?](#为什么kafka的offset放到了kafka的名为__consumer_offsets-的topic中)
   - [Kafka分区的目的](#kafka分区的目的)
   - [Kafka如何做到消息的有序性？](#kafka如何做到消息的有序性)
   - [Kafka中leader分区的选举机制](#kafka中leader分区的选举机制)
@@ -3897,7 +3905,8 @@ Zookeeper > 缓存 > 数据库
 4. Producer的负载均衡：
 5. 维护Partition和Consumer的关系：同一个Consumer Group订阅的任一个Partition都只能分配给一个Consumer，Partition和Consumer的对应关系路径：`/consumer/{group_id}/owners/{topic}/{broker_id-partition_id}`，该路径下的内容是该消息分区消费者的Consumer ID。这个路径也是一个临时节点，在Rebalance时会被删除。
 6. 记录消息消费的进度：在2.0版本中不再记录在Zookeeper中，而是记录在Kafka的Topic中。
-
+### 为什么Kafka的offset放到了Kafka的名为__consumer_offsets 的Topic中?
+Kafka其实存在一个比较大的隐患，就是利用Zookeeper来存储记录每个消费者/消费者组的消费进度，虽然在使用过程中JVM帮助我们完成了一些优化，但是消费者需要频繁的去与Zookeeper进行交互，而ZKClient的API操作Zookeeper频繁的Write其本身是一个比较低效的action，对于后期水平扩展也是一个比较头疼的问题。如果期间Zookeeper集群发生了变化，那Kafka集群的吞吐量也跟着受影响。
 ## Kafka分区的目的
 实现负载均衡，分区对于消费者来说，可以提高并发度，提高效率
 ## Kafka如何做到消息的有序性？

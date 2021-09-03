@@ -9,7 +9,9 @@
     - [Kafka的特点](#kafka的特点)
     - [Kafka和其他消息队列的区别](#kafka和其他消息队列的区别)
     - [Kafka中Zookeeper的作用](#kafka中zookeeper的作用)
+      - [为什么Kafka的offset放到了Kafka的名为__consumer_offsets 的Topic中?](#为什么kafka的offset放到了kafka的名为__consumer_offsets-的topic中)
     - [Kafka分区的目的](#kafka分区的目的)
+    - [Kafka分区的partition个数设置为多少合适？](#kafka分区的partition个数设置为多少合适)
     - [Kafka如何做到消息的有序性？](#kafka如何做到消息的有序性)
     - [Kafka中leader分区的选举机制](#kafka中leader分区的选举机制)
     - [OffSet的作用](#offset的作用)
@@ -65,9 +67,12 @@
 4. Producer的负载均衡：
 5. 维护Partition和Consumer的关系：同一个Consumer Group订阅的任一个Partition都只能分配给一个Consumer，Partition和Consumer的对应关系路径：`/consumer/{group_id}/owners/{topic}/{broker_id-partition_id}`，该路径下的内容是该消息分区消费者的Consumer ID。这个路径也是一个临时节点，在Rebalance时会被删除。
 6. 记录消息消费的进度：在2.0版本中不再记录在Zookeeper中，而是记录在Kafka的Topic中。
+#### 为什么Kafka的offset放到了Kafka的名为__consumer_offsets 的Topic中?
+Kafka其实存在一个比较大的隐患，就是利用Zookeeper来存储记录每个消费者/消费者组的消费进度，虽然在使用过程中JVM帮助我们完成了一些优化，但是消费者需要频繁的去与Zookeeper进行交互，而ZKClient的API操作Zookeeper频繁的Write其本身是一个比较低效的action，对于后期水平扩展也是一个比较头疼的问题。如果期间Zookeeper集群发生了变化，那Kafka集群的吞吐量也跟着受影响。
 
 ### Kafka分区的目的
 实现负载均衡，分区对于消费者来说，可以提高并发度，提高效率
+### Kafka分区的partition个数设置为多少合适？ 
 ### Kafka如何做到消息的有序性？
 kafka中每个partition的写入是有序的，而且单个partition只能由一个消费者消费，可以保证里面的消息的顺序性，但是分区之间的消息是不保证有序的。
 ### Kafka中leader分区的选举机制
