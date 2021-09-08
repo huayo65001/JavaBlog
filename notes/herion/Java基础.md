@@ -389,7 +389,7 @@ native版本的MethodAccessor启动速度快，但随运行时间变长速度变
 
 两个对象hashCode相同，对象不一定相等。
 
-如果让对象充当HashMap的key时，如果不重写hashCode方法，那两个内容相同的对象因为hashCode值不同，都会存在map中，这样一个key存了两边，所以必须重写hashCode()。
+如果让对象充当HashMap的key时，如果不重写hashCode方法，那两个内容相同的对象因为hashCode值不同，都会存在map中，这样一个key存了两遍，所以必须重写hashCode()。
 
 ### 27.BigDecimal
 
