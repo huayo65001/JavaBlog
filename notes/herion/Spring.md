@@ -96,7 +96,7 @@ session：每一次HTTP请求会创建一个新的bean，该bean仅在当前HTTP
 
 @Component 组件，通用的注解
 
-@Controller Contriller层
+@Controller Controller层
 
 @Service Service层
 

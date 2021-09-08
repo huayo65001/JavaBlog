@@ -56,3 +56,12 @@ $$
 S=\frac{(首项+尾项)\times项数}{2}
 $$
 
+### 4.四舍五入
+
+```java
+int a = 1, b = 3;
+float res = (float) a / b;
+BigDecimal bd = new BigDecimal(res);
+String s = bd.setScale(2, RoundingMode.HALF_DOWN).toString();
+```
+

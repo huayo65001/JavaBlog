@@ -138,7 +138,7 @@ keySet在循环时调用了get(key)方法，又遍历了一边map；entrySet将k
 
 ##### 1.jdk1.7及以前
 
-Segment+HashEntry+链表。Segment是可重入锁，大小为16，HshEntry用来保存键值对，链表用来解决冲突。一个ConcurrentHashMap中有一个Segment数组，一个元素包含一个HashEntry数组，每个元素是个链表。每个Segment元素守护一个HashEntry数组，需要修改元素时，需要先获得Segment的锁。
+Segment+HashEntry+链表。Segment是可重入锁，大小为16，HashEntry用来保存键值对，链表用来解决冲突。一个ConcurrentHashMap中有一个Segment数组，一个元素包含一个HashEntry数组，每个元素是个链表。每个Segment元素守护一个HashEntry数组，需要修改元素时，需要先获得Segment的锁。
 
 **初始化segment**
 
