@@ -89,6 +89,24 @@ Hashmap通过键值对保存信息，如果键没有按照一定顺序排列，�
 
 拷贝构造函数或拷贝工厂。
 
+##### 4.深拷贝方法
+
+1.构造函数
+
+调用构造函数进行深拷贝，基本类型直接赋值，对象则重新new一个。
+
+缺点：新增成员变量需要新增新的拷贝构造函数
+
+2.实现Cloneable接口
+
+类及所有成员变量的类都要实现接口，并重写clone()方法，并且需要拷贝的类的clone()方法内，调用成员变量的clone()方法。
+
+3.序列化
+
+Jackson、Gson、Apache Commons Lang包。先序列化对象，再反序列化生成拷贝对象。
+
+需要实现Serializable接口。
+
 ### 9.抽象类与接口
 
 抽象类不能被实例化，只能被继承。
@@ -446,3 +464,40 @@ Cross-site Request Forgery跨站请求伪造。攻击者通过伪造浏览器的
 3.请求地址添加token，服务器解码token验证。
 
 4.在HTTP请求头中自定义属性。通过XMLHttpRequest类为所有该类请求添加请求头属性，将token放在其中，这样token不需要添加在url中。
+
+### 32.AutoCloseable
+
+java.lang包下的一个接口，主要用于管理资源，准确的说是释放资源。
+
+资源类实现AutoCloseable接口，需要重写close()方法。
+
+数据库连接类Connection，io类InputStream和OutputStream使用到了此接口。
+
+try-with-resources语法糖
+
+```java
+public class Resource implements AutoCloseable{
+    public void read() {
+        System.out.println("do something");
+    }
+ 
+    @Override
+    public void close() throws Exception {
+        System.out.println("closed");
+    }
+}
+public static void f2(){
+    try(Resource resource = new Resource()) {
+        resource.read();
+    } catch (Exception e) {
+    }
+}
+```
+
+
+
+1.使用try-with-resources语法，无论是否抛出异常，在执行完后都会调用close()方法。
+
+2.使用try-with-resources语法创建多个资源，close()方法的执行顺序和创建资源顺序相反。
+
+3.使用try-with-resources语法，抛出异常后先执行所有资源的close()方法，再执行catch里面的代码，最后执行finally里的代码。

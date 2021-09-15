@@ -255,7 +255,9 @@ volatile除了防止JVM的指令重排，还一个作用就是保证变量的可
 
 **有序性：**保证代码执行的先后顺序。
 
-### 14.synchronized和volatile
+### 14.synchronized与其他的区别
+
+##### 1.synchronized和volatile
 
 volatile是线程同步的轻量级实现，所以volatile比synchronized性能好。
 
@@ -264,6 +266,22 @@ volatile只能用于变量，synchronized可以修饰方法和代码块。
 volatile主要用来保证变量的可见性，不能保证原子性，synchronized两者都可以保证。
 
 volatile主要解决变量在多个线程的可见性，synchronized主要解决多个线程之间访问资源的同步性。
+
+##### 2.synchronized和lock
+
+synchronized是java的关键字，是jvm层面上的；Lock是一个juc包locks下的一个接口。
+
+synchronized是可重入锁，不可中断锁、非公平锁；Lock是可重入锁，可中断锁，公平锁（默认非公平）。
+
+发生异常时，synchronized会自动释放锁，不会出现死锁；Lock不会自动释放锁，必须手动调用unlock()方法（在finally里写）。
+
+synchronized不能判断锁的状态；Lock可以判断锁的状态。
+
+synchronized适合资源竞争不激烈的情况；Lock适合资源竞争激烈的情况。
+
+synchronized使用notify()调度；Lock可以使用condition。
+
+synchronized底层实现是monitor；Lock底层是CAS乐观锁。
 
 ### 15.ThreadLocal
 
