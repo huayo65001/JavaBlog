@@ -549,6 +549,12 @@ HTTP/1.1 相比 HTTP/1.0 性能上的改进：使用 TCP 长连接的方式改�
     - 实体标头：Content-Encoding(编码方式)，Content-Language(客户端或服务端能够接受的语言)，Content-Length(实体主体的大小)，Content-Type(媒体类型),Expires(实体主题过期的日期时间),Last-Modified(资源最后修改日期时间)。
     - 请求标头：Accept(用户代理可处理的媒体类型)，Accept-Charset(优先的字符集)，Accept-Encoding(优先的内容编码)，If-Modified-Since(比较资源的更新时间，200，304)，If-None-Match(比较实体标记)。
     - 响应标头：Keep-Alive(Connection非持久连接的存活时间，可以进行指定)，ETag(资源的匹配信息)。
+17. 长地址URL转短地址URL：
+    1.  通过发号策略，给每一个过来的长地址，发一个号，小型系统直接用mysql的自增索引就能搞定，大型系统可以考虑用各种分布式的key-value系统做发号器，不停的自增就可以了(实现一个62进制的自增字段即可)。**使用SnowFlake发号器生成短地址**，SnowFlake算法用来生成64位的ID，刚好可以用long整型存储，能够用于分布式系统中生产唯一的ID，并且生成的ID有大致的顺序。在这次实现中，生成的64位ID可以分成5个部分：0 - 41位时间戳 - 5位数据中心标识 - 5位机器标识 - 12位序列号，
+    2.  **跳转的话用301还是302**？301是永久重定向，302是临时重定向。短地址一经生成就不再变化，所以使用301是符合http语义的，同时对服务器的压力也会有一定的减少，但是如果使用了301就无法统计到短地址被点击的次数了，这个数据也是很有研究价值的，所以选择302会增加服务器压力，但是是一个更好的选择。
+    3.  设计算法的要点：(1)利用放号器，初始值为0，对于每一个短链接生成请求，都递增放号器的值，再将此值转换为62进制（a-zA-Z0-9），比如第一次请求时放号器的值为0，对应62进制为a，第二次请求时放号器的值为1，对应62进制为b，第10001次请求时放号器的值为10000，对应62进制为sBc。(2)将短链接服务器域名与放号器的62进制值进行字符串连接，即为短链接的URL，比如：t.cn/sBc。(3)重定向过程：生成短链接之后，需要存储短链接到长链接的映射关系，即sBc -> URL，浏览器访问短链接服务器时，根据URL Path取到原始的链接，然后进行302重定向。映射关系可使用K-V存储，比如Redis。
+    4.  **生成短URL后如何跳转**？用户访问短链接，短链接服务器收到请求，根据URL路径取到原始的长链接(去数据库或Redis中)，服务器返回302状态码，重定向到原始的长链接地址，浏览器重新向这个长链接地址发送响应，返回响应。
+    5.  **短地址发号器的优化方案**：采用以上算法，如果不加判断，那么即使对于同一个原始URL，每次生成的短链接也是不同的，这样就会浪费存储空间（因为需要存储多个短链接到同一个URL的映射），如果能将相同的URL映射成同一个短链接，这样就可以节省存储空间了。(**1**)查表：每次生成短链接时，先在映射表中查找是否已有原始URL的映射关系，如果有，则直接返回结果。很明显，这种方式效率很低。(**2**)**使用LRU本地缓存，空间换时间**。使用固定大小的LRU缓存，存储最近N次的映射结果，这样，如果某一个链接生成的非常频繁，则可以在LRU缓存中找到结果直接返回，这是存储空间和性能方面的折中。**可伸缩和高可用**，如果将短链接生成服务单机部署，缺点一是性能不足，不足以承受海量的并发访问，二是成为系统单点，如果这台机器宕机则整套服务不可用，为了解决这个问题，可以将系统集群化，进行“分片”。在以上描述的系统架构中，如果发号器用Redis实现，则Redis是系统的瓶颈与单点，因此，利用数据库分片的设计思想，可部署多个发号器实例，每个实例负责特定号段的发号，比如部署10台Redis，每台分别负责号段尾号为0-9的发号，注意此时发号器的步长则应该设置为10（实例个数）。另外，也可将长链接与短链接映射关系的存储进行分片，由于没有一个中心化的存储位置，因此需要开发额外的服务，用于查找短链接对应的原始链接的存储节点，这样才能去正确的节点上找到映射关系。
 
 ### TCP的三次握手
 A为客户端、B为服务端
@@ -637,6 +643,13 @@ TCP连接的双方都会有一定的缓冲区，发送方和接收方各有一�
 
 ### TCP流量控制
 流量控制是为了控制对方发送的速率，保证接收方来得及接收。
+#### 操作系统和滑动窗口的关系
+发送窗口和接收窗口中所存放的字节数都是放在操作系统内存缓冲区中的，而操作系统的缓冲区，会被操作系统调整。
+当应用程序没办法及时读取缓冲区的内容时，也会对我们的缓冲区造成影响。
+1. 当应用程序没有及时读取缓存时，发送窗口和接收窗口的变化。
+2. 当服务端资源非常紧张时，操作系统可能会直接减少了接收缓冲区的大小，这时应用程序又无法及时读取缓存数据，这时候就有严重的事情发生了，会出现数据包丢失的现象。为了防止这种情况的发生，TCP规定不允许同时减少缓存又收缩窗口的，而是采用先收缩窗口，过段时间再减少缓存，这样就可以避免了丢包的情况。
+- **窗口关闭**，如果窗口大小为0时，就会阻止发送方给接收方传递数据，直到窗口变为非0时位置。接收方向发送方通告窗口大小时，是通过ACK报文来通告的。当发送窗口关闭时，接收方处理完数据后，会向发送方通告一个窗口非0的ACK报文，如果这个通告窗口的ACK报文在网络中丢失了，如果不做任何的措施，那么双方将一直持续等待的状态，这就成了死锁的现象。**为了解决这个问题，TCP为每个连接设有一个持续的定时器，只要TCP连接一方收到对方的零窗口通知，就启动持续计时器。如果持续计时器超时，就会发送窗口探测报文，而对下在确认这个探测报文时，会给出自己现在的接收窗口大小。**
+- **糊涂窗口综合症**：如果接收方太忙了，来不及取走接收窗口里的数据，那么就会导致发送方的发送窗口越来越小。到最后，如果接收方腾出几个字节并高速发送方现在有几个字节的窗口，而发送方会义无反顾地发送这几个字节，这就是糊涂窗口综合症。**解决这个问题**，让接收方不通告小窗口给发送方。让发送方避免发送小数据。
 
 ### TCP拥塞控制
 1. 拥塞窗口(cwnd)：状态变量
@@ -1588,6 +1601,8 @@ exception分为checkexception和uncheckexception。IOexception为checkexception�
 1. 序列化：把数据结构或对象转换成二进制字节流的过程。
 2. 反序列化：把二进制字节流转换成数据结构或对象的过程。
 如果不想序列化可以使用transient关键字。transient只能修饰变量，不能修饰类和方法。在反序列化的过程中，被transient修饰的变量值会被置为类型的默认值。static变量属于类，不属于某个对象，所以不论是否被transient修饰，都不会被序列化。
+3. serialVersionUID的取值是Java运行时环境根据类的内部细节自动生成的。如果对类的源代码作了修改，再重新编译，新生成的类文件的serialVersionUID的取值有可能也会发生变化。类的serialVersionUID的默认值完全依赖自Java编译器的实现，对于同个类用不同的Java编译器编泽，有可能会导致不同的serialVersionUID，也有可能相同。为了提高serialVersionUID的独立性和确定性，强烈建议在一个可序列化类中显示的定义serialversionUID，为它赋予明确的值。显式地定以serialVersionUD有两种用途：1。在某些场合，希望类的不同版本对序列化兼容，因此需要确保类的不同版本具有相同的serialVersionUID;2。在某些场合，不希望类的不同版本对序列化兼容，因此需要确保类的不同版本具有不同的serialVersionUID。
+4. 序列化算法需要做的事：1. 将对象实例相关的类元数据输出。2. 递归地输出类的超类描述直到不再有超类。3. 类元数据输出完毕后，从最顶端的超类开始输出对象实例的实际数据值。4. 从上至下递归输出实例的数据。
 ## java中IO流分为几种？
 
 ## 既然有了字节流为什么还要字符流？
@@ -4142,6 +4157,8 @@ UML、伪代码
 		- [读者写者问题](#读者写者问题)
 		- [哲学家进餐问题](#哲学家进餐问题)
     - [KMP](#kmp)
+    - [进制转换工具](#进制转换工具)
+    - [利用SnowFlake生成短链接](#利用SnowFlake生成短链接)
 <!-- Added by: hanzhigang, at: 2021年 8月28日 星期六 09时49分29秒 CST -->
 
 <!--te-->
@@ -5060,5 +5077,181 @@ public class KMP {
 		}
 		return -1;
 	}
+}
+```
+## 进制转换工具
+```java
+public class NumericConvertUtils {
+
+    /**
+     * 在进制表示中的字符集合，0-Z分别用于表示最大为62进制的符号表示
+     */
+    private static final char[] digits = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+            'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+            'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+            'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
+
+    /**
+     * 将十进制的数字转换为指定进制的字符串
+     * @param number 十进制的数字
+     * @param seed   指定的进制
+     * @return 指定进制的字符串
+     */
+    public static String toOtherNumberSystem(long number, int seed) {
+        if (number < 0) {
+            number = ((long) 2 * 0x7fffffff) + number + 2;
+        }
+        char[] buf = new char[32];
+        int charPos = 32;
+        while ((number / seed) > 0) {
+            buf[--charPos] = digits[(int) (number % seed)];
+            number /= seed;
+        }
+        buf[--charPos] = digits[(int) (number % seed)];
+        return new String(buf, charPos, (32 - charPos));
+    }
+
+    /**
+     * 将其它进制的数字（字符串形式）转换为十进制的数字
+     * @param number 其它进制的数字（字符串形式）
+     * @param seed   指定的进制，也就是参数str的原始进制
+     * @return 十进制的数字
+     */
+    public static long toDecimalNumber(String number, int seed) {
+        char[] charBuf = number.toCharArray();
+        if (seed == 10) {
+            return Long.parseLong(number);
+        }
+
+        long result = 0, base = 1;
+
+        for (int i = charBuf.length - 1; i >= 0; i--) {
+            int index = 0;
+            for (int j = 0, length = digits.length; j < length; j++) {
+	            //找到对应字符的下标，对应的下标才是具体的数值
+                if (digits[j] == charBuf[i]) {
+                    index = j;
+                }
+            }
+            result += index * base;
+            base *= seed;
+        }
+        return result;
+    }
+}  
+```
+## 利用SnowFlake生成短链接
+```java
+public class SnowFlakeShortUrl {
+
+    /**
+     * 起始的时间戳
+     */
+    private final static long START_TIMESTAMP = 1480166465631L;
+
+    /**
+     * 每一部分占用的位数
+     */
+    private final static long SEQUENCE_BIT = 12;   //序列号占用的位数
+    private final static long MACHINE_BIT = 5;     //机器标识占用的位数
+    private final static long DATA_CENTER_BIT = 5; //数据中心占用的位数
+
+    /**
+     * 每一部分的最大值
+     */
+    private final static long MAX_SEQUENCE = -1L ^ (-1L << SEQUENCE_BIT);
+    private final static long MAX_MACHINE_NUM = -1L ^ (-1L << MACHINE_BIT);
+    private final static long MAX_DATA_CENTER_NUM = -1L ^ (-1L << DATA_CENTER_BIT);
+
+    /**
+     * 每一部分向左的位移
+     */
+    private final static long MACHINE_LEFT = SEQUENCE_BIT;
+    private final static long DATA_CENTER_LEFT = SEQUENCE_BIT + MACHINE_BIT;
+    private final static long TIMESTAMP_LEFT = DATA_CENTER_LEFT + DATA_CENTER_BIT;
+
+    private long dataCenterId;  //数据中心
+    private long machineId;     //机器标识
+    private long sequence = 0L; //序列号
+    private long lastTimeStamp = -1L;  //上一次时间戳
+
+    /**
+     * 根据指定的数据中心ID和机器标志ID生成指定的序列号
+     * @param dataCenterId 数据中心ID
+     * @param machineId    机器标志ID
+     */
+    public SnowFlake(long dataCenterId, long machineId) {
+        if (dataCenterId > MAX_DATA_CENTER_NUM || dataCenterId < 0) {
+            throw new IllegalArgumentException("DtaCenterId can't be greater than MAX_DATA_CENTER_NUM or less than 0！");
+        }
+        if (machineId > MAX_MACHINE_NUM || machineId < 0) {
+            throw new IllegalArgumentException("MachineId can't be greater than MAX_MACHINE_NUM or less than 0！");
+        }
+        this.dataCenterId = dataCenterId;
+        this.machineId = machineId;
+    }
+
+    /**
+     * 产生下一个ID
+     * @return
+     */
+    public synchronized long nextId() {
+        long currTimeStamp = getNewTimeStamp();
+        if (currTimeStamp < lastTimeStamp) {
+            throw new RuntimeException("Clock moved backwards.  Refusing to generate id");
+        }
+
+        if (currTimeStamp == lastTimeStamp) {
+            //相同毫秒内，序列号自增
+            sequence = (sequence + 1) & MAX_SEQUENCE;
+            //同一毫秒的序列数已经达到最大
+            if (sequence == 0L) {
+                currTimeStamp = getNextMill();
+            }
+        } else {
+            //不同毫秒内，序列号置为0
+            sequence = 0L;
+        }
+
+        lastTimeStamp = currTimeStamp;
+
+        return (currTimeStamp - START_TIMESTAMP) << TIMESTAMP_LEFT //时间戳部分
+                | dataCenterId << DATA_CENTER_LEFT       //数据中心部分
+                | machineId << MACHINE_LEFT             //机器标识部分
+                | sequence;                             //序列号部分
+    }
+
+    private long getNextMill() {
+        long mill = getNewTimeStamp();
+        while (mill <= lastTimeStamp) {
+            mill = getNewTimeStamp();
+        }
+        return mill;
+    }
+
+    private long getNewTimeStamp() {
+        return System.currentTimeMillis();
+    }
+
+    public static void main(String[] args) {
+        SnowFlake snowFlake = new SnowFlake(2, 3);
+
+        for (int i = 0; i < (1 << 4); i++) {
+            //10进制
+            Long id = snowFlake.nextId();
+            //62进制
+            String convertedNumStr = NumericConvertUtils.toOtherNumberSystem(id, 62);
+
+            //10进制转化为62进制
+            System.out.println("10进制：" + id + "  62进制:" + convertedNumStr);
+
+            //TODO 执行具体的存储操作，可以存放在Redis等中
+
+            //62进制转化为10进制
+            System.out.println("62进制：" + convertedNumStr + "  10进制:" + NumericConvertUtils.toDecimalNumber(convertedNumStr, 62));
+            System.out.println();
+        }
+    }
 }
 ```
